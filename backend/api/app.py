@@ -716,7 +716,7 @@ async def chat_endpoint(
         # Format the response with enhanced analysis and sources
         if response_data:
             # Extract fields based on the production model output format
-            question = response_data.get('question', query)
+            question = response_data.get('question', chat_message.message)
             analysis = response_data.get('analysis', 'No analysis available')
             key_findings = response_data.get('key_findings', [])
             citations = response_data.get('citations', [])
