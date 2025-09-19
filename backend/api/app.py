@@ -749,12 +749,7 @@ async def chat_endpoint(
                         formatted_response += f"{i}. {clean_finding}\n"
                 formatted_response += "\n"
             
-            # Enhanced citations section
-            if citations:
-                formatted_response += f"## 📚 Legal Citations\n\n"
-                for i, citation in enumerate(citations, 1):
-                    formatted_response += f"{i}. {citation}\n"
-                formatted_response += "\n"
+            # Legal Citations section removed as requested
             
             # Add footer with disclaimer
             formatted_response += "---\n"
