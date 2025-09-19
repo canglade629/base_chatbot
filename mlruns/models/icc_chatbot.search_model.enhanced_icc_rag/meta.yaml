@@ -1,9 +1,0 @@
-aliases:
-  challenger: '5'
-  champion: '5'
-creation_timestamp: 1758293875962
-deployment_job_id: null
-deployment_job_state: null
-description: null
-last_updated_timestamp: 1758295695064
-name: icc_chatbot.search_model.enhanced_icc_rag
