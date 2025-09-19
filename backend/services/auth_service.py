@@ -10,7 +10,7 @@ load_dotenv()
 # JWT Configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour instead of 30 minutes
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours for much longer sessions
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

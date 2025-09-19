@@ -183,6 +183,9 @@ class TokenResponse(BaseModel):
 class TokenData(BaseModel):
     uid: Optional[str] = None
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
 class ConversationResponse(BaseModel):
     id: str
     title: str
@@ -493,10 +496,10 @@ async def login(user_data: UserLogin):
         )
 
 @app.post("/auth/refresh", response_model=TokenResponse)
-async def refresh_token(refresh_token: str):
+async def refresh_token(request: RefreshTokenRequest):
     """Refresh access token using refresh token"""
     try:
-        payload = auth_service.verify_token(refresh_token)
+        payload = auth_service.verify_token(request.refresh_token)
         if payload is None or payload.get("type") != "refresh":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -728,18 +731,29 @@ async def chat_endpoint(
             confidence_level = "High" if confidence_score >= 0.8 else "Medium" if confidence_score >= 0.6 else "Low"                                                                                                    
             confidence_emoji = "🟢" if confidence_score >= 0.8 else "🟡" if confidence_score >= 0.6 else "🔴"                                                                                                           
             
-            formatted_response = f"# ⚖️ Legal Analysis\n\n"
+            # Enhanced formatting to match the model's structured output
+            formatted_response = f"# ⚖️ Legal Research Analysis\n\n"
             formatted_response += f"**Research Question:** {question}\n\n"
-            formatted_response += f"**Analysis Quality:** {confidence_emoji} {confidence_level} Confidence ({confidence_score:.2f})\n"                                                                                  
+            formatted_response += f"**Analysis Quality:** {confidence_emoji} {confidence_level} Confidence ({confidence_score:.2f})\n"
             formatted_response += f"**Sources Analyzed:** {sources_used} documents\n"
             formatted_response += f"**Processing Time:** {processing_time:.2f}s\n\n"
             
-            # Main analysis with better formatting
-            formatted_response += f"## 📋 Analysis\n\n{analysis}\n\n"
+            # The analysis from the model already contains the structured markdown format
+            # We just need to ensure it's properly formatted
+            if analysis:
+                # The model now returns structured analysis with proper markdown
+                # We can display it directly as it already contains the required sections:
+                # - Legal Framework
+                # - Case Law Analysis  
+                # - Synthesis and Analysis
+                # - Key Findings
+                formatted_response += analysis
+            else:
+                formatted_response += "## 📋 Analysis\n\nNo detailed analysis available.\n\n"
             
-            # Enhanced key findings section
-            if key_findings:
-                formatted_response += f"## 🔍 Key Findings\n\n"
+            # Add additional key findings if they exist and aren't already in the analysis
+            if key_findings and not any("Key Findings" in analysis for analysis in [analysis]):
+                formatted_response += f"\n## 🔍 Additional Key Findings\n\n"
                 for i, finding in enumerate(key_findings, 1):
                     # Clean up the finding text
                     clean_finding = finding.replace('•', '').replace('*', '').strip()
@@ -749,7 +763,7 @@ async def chat_endpoint(
                         formatted_response += f"{i}. {clean_finding}\n"
                 formatted_response += "\n"
             
-            # Legal Citations section removed as requested
+        # Citations section removed per user request
             
             # Add footer with disclaimer
             formatted_response += "---\n"

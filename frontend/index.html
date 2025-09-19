@@ -32,12 +32,14 @@
             scroll-behavior: smooth;
         }
         
-        /* Markdown styling */
+        /* Simple markdown styling */
         .markdown-content {
             word-wrap: break-word;
             word-break: break-word;
             overflow-wrap: break-word;
             white-space: pre-wrap;
+            color: #374151;
+            background-color: transparent;
         }
         
         .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 {
@@ -45,23 +47,34 @@
             margin: 0.75rem 0 0.25rem 0;
         }
         
-        .markdown-content h1 { font-size: 1.875rem; }
-        .markdown-content h2 { font-size: 1.5rem; }
-        .markdown-content h3 { font-size: 1.25rem; }
-        .markdown-content h4 { font-size: 1.125rem; }
-        .markdown-content h5 { font-size: 1rem; }
+        .markdown-content h1 { font-size: 1.5rem; }
+        .markdown-content h2 { font-size: 1.25rem; }
+        .markdown-content h3 { font-size: 1.125rem; }
+        .markdown-content h4 { font-size: 1rem; }
+        .markdown-content h5 { font-size: 0.875rem; }
         .markdown-content h6 { font-size: 0.875rem; }
         
-        /* Paragraph styling moved to legal-specific section below */
+        .markdown-content p {
+            margin: 0.5rem 0;
+            line-height: 1.6;
+        }
         
         .markdown-content ul, .markdown-content ol {
             margin: 0.5rem 0;
             padding-left: 1.5rem;
         }
         
-        /* List item styling moved to legal-specific section below */
+        .markdown-content li {
+            margin: 0.25rem 0;
+        }
         
-        /* Code styling moved to legal-specific section below */
+        .markdown-content code {
+            background-color: #f3f4f6;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
         
         .markdown-content pre {
             background-color: #f3f4f6;
@@ -93,29 +106,171 @@
             color: #1d4ed8;
         }
         
+        .markdown-content strong, .markdown-content b {
+            font-weight: bold;
+        }
+        
+        .markdown-content em, .markdown-content i {
+            font-style: italic;
+        }
+        
+        .markdown-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.5rem 0;
+        }
+        
+        .markdown-content th, .markdown-content td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .markdown-content th {
+            background-color: #f9fafb;
+            font-weight: bold;
+        }
+        
+        /* Simple dark mode support */
+        [data-theme="dark"] {
+            .markdown-content {
+                color: #ffffff;
+            }
+            
+            .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+                color: #ffffff;
+            }
+            
+            .markdown-content code {
+                background-color: #374151;
+                color: #ffffff;
+            }
+            
+            .markdown-content pre {
+                background-color: #374151;
+                color: #ffffff;
+            }
+            
+            .markdown-content blockquote {
+                border-left-color: #6b7280;
+                color: #ffffff;
+            }
+            
+            .markdown-content th {
+                background-color: #4b5563;
+                color: #ffffff;
+            }
+            
+            .markdown-content td {
+                border-bottom-color: #6b7280;
+            }
+        }
+        
+        .markdown-content li {
+            margin: 0.25rem 0;
+        }
+        
+        .markdown-content code {
+            background-color: #f3f4f6;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
+        
+        .markdown-content pre {
+            background-color: #f3f4f6;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+        
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        
+        .markdown-content blockquote {
+            border-left: 4px solid #e5e7eb;
+            padding-left: 1rem;
+            margin: 0.5rem 0;
+            font-style: italic;
+            color: #6b7280;
+        }
+        
+        .markdown-content a {
+            color: #3b82f6;
+            text-decoration: underline;
+        }
+        
+        .markdown-content a:hover {
+            color: #1d4ed8;
+        }
+        
+        .markdown-content strong, .markdown-content b {
+            font-weight: bold;
+        }
+        
+        .markdown-content em, .markdown-content i {
+            font-style: italic;
+        }
+        
         /* Strong and em styling moved to legal-specific section below */
         
         /* Legal-specific styling */
         .markdown-content code {
-            background-color: #374151 !important; /* Dark grey background for Articles */
-            color: #f9fafb !important; /* Light text */
-            padding: 0.25rem 0.5rem !important;
-            border-radius: 0.375rem !important;
+            background-color: #f1f5f9 !important; /* Very light grey background for Articles */
+            color: #475569 !important; /* Medium grey text */
+            padding: 0.125rem 0.375rem !important; /* Smaller padding */
+            border-radius: 0.25rem !important; /* Smaller border radius */
             font-family: 'Courier New', monospace !important;
-            font-size: 0.875rem !important;
-            font-weight: 500 !important;
-            border: 1px solid #4b5563 !important;
+            font-size: 0.8rem !important; /* Smaller font size */
+            font-weight: 500 !important; /* Lighter font weight */
+            border: none !important; /* No border */
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important; /* Subtle shadow */
         }
         
-        .markdown-content strong {
+        /* Harmonized strong/bold text - grey tones */
+        .markdown-content strong, .markdown-content b {
             font-weight: 700 !important;
-            color: #1f2937 !important;
+            color: #111827; /* Darkest grey for bold text */
         }
         
-        /* Legal citations styling */
+        /* Harmonized paragraph styling - grey tones */
         .markdown-content p {
             margin: 0.75rem 0 !important;
             line-height: 1.6 !important;
+            color: #4b5563; /* Medium grey for paragraphs */
+        }
+        
+        /* Enhanced legal citations formatting */
+        .markdown-content h2 {
+            color: #1f2937 !important;
+            font-size: 1.25rem !important;
+            font-weight: 700 !important;
+            margin: 1.5rem 0 1rem 0 !important;
+            padding-bottom: 0.5rem !important;
+            border-bottom: 2px solid #e5e7eb !important;
+        }
+        
+        /* List styling */
+        .markdown-content ul, .markdown-content ol {
+            margin: 1rem 0 !important;
+            padding-left: 1.5rem !important;
+        }
+        
+        .markdown-content ul li, .markdown-content ol li {
+            margin: 0.5rem 0 !important;
+            line-height: 1.5 !important;
+        }
+        
+        /* Page reference styling within citations */
+        .markdown-content ol li p {
+            margin: 0.25rem 0 !important;
+            font-size: 0.875rem !important;
+            color: #6b7280 !important;
+            font-style: italic !important;
         }
         
         /* Legal headings */
@@ -138,18 +293,8 @@
             margin-bottom: 0.5rem !important;
         }
         
-        /* Legal lists */
-        .markdown-content ul li {
-            margin: 0.5rem 0 !important;
-            line-height: 1.5 !important;
-        }
         
-        .markdown-content ol li {
-            margin: 0.5rem 0 !important;
-            line-height: 1.5 !important;
-        }
-        
-        /* Legal blockquotes for citations */
+        /* Enhanced blockquotes for legal citations and insights */
         .markdown-content blockquote {
             border-left: 4px solid #3b82f6 !important;
             background-color: #f8fafc !important;
@@ -157,94 +302,204 @@
             margin: 1rem 0 !important;
             border-radius: 0.375rem !important;
             color: #374151 !important;
+            font-style: italic !important;
+            position: relative !important;
         }
         
-        /* Italic text for page references */
-        .markdown-content em {
-            color: #6b7280 !important;
+        .markdown-content blockquote::before {
+            content: "💡" !important;
+            position: absolute !important;
+            top: -0.5rem !important;
+            left: -0.5rem !important;
+            background: #3b82f6 !important;
+            color: white !important;
+            border-radius: 50% !important;
+            width: 1.5rem !important;
+            height: 1.5rem !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 0.75rem !important;
+        }
+        
+        /* Harmonized italic text - grey tones */
+        .markdown-content em, .markdown-content i {
+            color: #6b7280 !important; /* Light grey for italic text */
             font-style: italic !important;
         }
         
         /* Custom legal element classes */
         .legal-article {
-            background-color: #374151 !important;
-            color: #f9fafb !important;
-            padding: 0.25rem 0.5rem !important;
-            border-radius: 0.375rem !important;
+            background-color: #f1f5f9 !important; /* Very light grey background */
+            color: #475569 !important; /* Medium grey text */
+            padding: 0.125rem 0.375rem !important; /* Smaller padding */
+            border-radius: 0.25rem !important; /* Smaller border radius */
             font-family: 'Courier New', monospace !important;
-            font-size: 0.875rem !important;
-            font-weight: 600 !important;
-            border: 1px solid #4b5563 !important;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+            font-size: 0.8rem !important; /* Smaller font size */
+            font-weight: 500 !important; /* Lighter font weight */
+            border: none !important; /* No border */
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important; /* Subtle shadow */
+            white-space: nowrap !important; /* Prevent line breaks within article boxes */
+            display: inline-block !important; /* Keep as inline element */
         }
         
+        /* Harmonized legal elements - grey tones */
         .legal-case {
-            color: #1e40af !important;
+            color: #374151 !important; /* Medium grey for case names */
             font-weight: 700 !important;
             font-size: 0.95em !important;
         }
         
         .legal-page {
-            color: #6b7280 !important;
+            color: #6b7280 !important; /* Light grey for page references */
             font-style: italic !important;
             font-size: 0.9em !important;
         }
         
+        /* Harmonized list items - grey tones */
         .legal-list-item {
             margin: 0.75rem 0 !important;
             line-height: 1.6 !important;
-            padding-left: 0.25rem !important;
+            padding: 0.5rem 0 0.5rem 1rem !important;
+            border-left: 4px solid #9ca3af !important; /* Light grey left border */
+            background: none !important; /* No background */
+            color: #4b5563 !important; /* Medium grey for list items */
         }
         
-        /* Dark mode support for legal documents */
-        @media (prefers-color-scheme: dark) {
+        /* Harmonized table styling - grey tones */
+        .markdown-content table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 1rem 0 !important;
+            background-color: #ffffff !important;
+            border-radius: 0.5rem !important;
+            overflow: hidden !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .markdown-content th {
+            background-color: #6b7280 !important; /* Medium grey for headers */
+            color: #ffffff !important;
+            padding: 0.75rem !important;
+            text-align: left !important;
+            font-weight: 600 !important;
+            font-size: 0.875rem !important;
+        }
+        
+        .markdown-content td {
+            padding: 0.75rem !important;
+            border-bottom: 1px solid #e5e7eb !important;
+            font-size: 0.875rem !important;
+            line-height: 1.5 !important;
+            color: #4b5563 !important; /* Medium grey for table text */
+        }
+        
+        .markdown-content tr:nth-child(even) {
+            background-color: #f9fafb !important;
+        }
+        
+        .markdown-content tr:hover {
+            background-color: #f3f4f6 !important;
+        }
+        
+        /* Enhanced heading styling for legal sections */
+        .markdown-content h2 {
+            position: relative !important;
+            padding-left: 1rem !important;
+        }
+        
+        .markdown-content h2::before {
+            content: "⚖️" !important;
+            position: absolute !important;
+            left: -0.5rem !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            font-size: 1.25rem !important;
+        }
+        
+        .markdown-content h3 {
+            position: relative !important;
+            padding-left: 1rem !important;
+        }
+        
+        .markdown-content h3::before {
+            content: "📋" !important;
+            position: absolute !important;
+            left: -0.5rem !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            font-size: 1rem !important;
+        }
+        
+        .markdown-content h4 {
+            position: relative !important;
+            padding-left: 1rem !important;
+        }
+        
+        .markdown-content h4::before {
+            content: "📄" !important;
+            position: absolute !important;
+            left: -0.5rem !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            font-size: 0.875rem !important;
+        }
+        
+        /* Enhanced dark mode support for legal documents */
+        [data-theme="dark"] {
+            /* Override base markdown content color for dark mode */
             .markdown-content {
-                color: #e5e7eb !important;
+                color: #ffffff !important; /* Pure white text for dark mode */
             }
             
             .markdown-content h1 {
-                color: #f5f5dc !important; /* Light beige for titles */
+                color: #ffffff !important; /* Pure white for titles */
                 border-bottom-color: #4b5563 !important;
             }
             
             .markdown-content h2 {
-                color: #f5f5dc !important; /* Light beige for titles */
+                color: #ffffff !important; /* Pure white for titles */
             }
             
             .markdown-content h3 {
-                color: #f5f5dc !important; /* Light beige for titles */
+                color: #ffffff !important; /* Pure white for titles */
             }
             
             .markdown-content h4, .markdown-content h5, .markdown-content h6 {
-                color: #f5f5dc !important; /* Light beige for titles */
+                color: #ffffff !important; /* Pure white for titles */
             }
             
             .markdown-content p {
-                color: #d1d5db !important; /* Light grey for text */
+                color: #ffffff !important; /* Pure white for text */
             }
             
             .markdown-content strong {
-                color: #f5f5dc !important; /* Light beige for strong text */
+                color: #ffffff !important; /* Pure white for strong text */
                 font-weight: 700 !important;
             }
             
             .markdown-content b {
-                color: #f5f5dc !important; /* Light beige for bold text */
+                color: #ffffff !important; /* Pure white for bold text */
                 font-weight: 700 !important;
             }
             
             .markdown-content em {
-                color: #9ca3af !important; /* Lighter grey for italic text */
+                color: #ffffff !important; /* Pure white for italic text */
             }
             
             .markdown-content ul li, .markdown-content ol li {
-                color: #d1d5db !important; /* Light grey for list items */
+                color: #ffffff !important; /* Pure white for list items */
             }
             
             .markdown-content blockquote {
                 background-color: #374151 !important; /* Dark grey background */
                 border-left-color: #60a5fa !important; /* Blue border */
-                color: #e5e7eb !important; /* Light text */
+                color: #ffffff !important; /* Pure white text */
+            }
+            
+            .markdown-content blockquote::before {
+                background: #60a5fa !important; /* Light blue background for icon */
+                color: #1f2937 !important; /* Dark text on light background */
             }
             
             .markdown-content a {
@@ -257,48 +512,239 @@
             
             /* Dark mode for legal elements */
             .legal-article {
-                background-color: #1f2937 !important; /* Darker background */
-                color: #f9fafb !important;
-                border-color: #374151 !important;
+                background-color: #4b5563 !important; /* Lighter dark background for dark mode */
+                color: #ffffff !important; /* Pure white text */
+                border: none !important; /* No border */
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important; /* Subtle shadow */
+                white-space: nowrap !important; /* Prevent line breaks within article boxes */
+                display: inline-block !important; /* Keep as inline element */
             }
             
             .legal-case {
-                color: #60a5fa !important; /* Light blue for case names */
+                color: #ffffff !important; /* Pure white for case names */
             }
             
             .legal-page {
-                color: #9ca3af !important; /* Light grey for page references */
+                color: #ffffff !important; /* Pure white for page references */
             }
             
             .legal-list-item {
-                color: #d1d5db !important; /* Light grey for list items */
+                color: #ffffff !important; /* Pure white for list items */
+                border-left-color: #9ca3af !important; /* Lighter grey border for dark mode */
+                background: none !important; /* No background */
             }
             
-            /* Enhanced bold text styling for dark mode */
-            .markdown-content .bold {
-                color: #f5f5dc !important;
-                font-weight: 700 !important;
-            }
-            
-            /* Ensure all bold elements are visible in dark mode */
-            .markdown-content *[style*="font-weight: bold"],
-            .markdown-content *[style*="font-weight:bold"] {
-                color: #f5f5dc !important;
-                font-weight: 700 !important;
-            }
+            /* Removed duplicate bold text styling - consolidated above */
             
             /* Dark mode for code elements */
             .markdown-content code {
-                background-color: #1f2937 !important; /* Darker background for code */
-                color: #f9fafb !important;
-                border-color: #374151 !important;
+                background-color: #4b5563 !important; /* Lighter dark background for code */
+                color: #ffffff !important; /* Pure white text */
+                border: none !important; /* No border */
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important; /* Subtle shadow */
             }
             
             /* Dark mode for pre blocks */
             .markdown-content pre {
                 background-color: #1f2937 !important;
-                color: #f9fafb !important;
+                color: #ffffff !important; /* Pure white text */
                 border: 1px solid #374151 !important;
+            }
+            
+            /* Dark mode for all titles - comprehensive coverage */
+            .markdown-content h1, .markdown-content h2, .markdown-content h3, 
+            .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+                color: #ffffff !important; /* Pure white for all titles */
+            }
+            
+            .markdown-content h1 {
+                border-bottom-color: #4b5563 !important;
+            }
+            
+            /* Dark mode for bold text - comprehensive coverage */
+            .markdown-content strong, 
+            .markdown-content b, 
+            .markdown-content .bold,
+            .markdown-content *[style*="font-weight: bold"],
+            .markdown-content *[style*="font-weight:bold"],
+            .markdown-content strong *,
+            .markdown-content b * {
+                color: #ffffff !important; /* Pure white for all bold text */
+                font-weight: 700 !important;
+            }
+            
+            .markdown-content ol li {
+                background-color: #374151 !important; /* Dark grey background */
+                border-left-color: #60a5fa !important; /* Light blue border */
+                color: #ffffff !important; /* Pure white text */
+            }
+            
+            .markdown-content ol li::before {
+                background-color: #60a5fa !important; /* Light blue for numbers */
+                color: #1f2937 !important; /* Dark text on light background */
+            }
+            
+            .markdown-content ol li p {
+                color: #9ca3af !important; /* Light grey for page references */
+            }
+            
+            
+            
+            /* Dark mode table styling */
+            .markdown-content table {
+                background-color: #374151 !important;
+                color: #e5e7eb !important;
+            }
+            
+            .markdown-content th {
+                background-color: #1f2937 !important;
+                color: #f9fafb !important;
+            }
+            
+            .markdown-content td {
+                border-bottom-color: #4b5563 !important;
+                color: #e5e7eb !important;
+            }
+            
+            .markdown-content tr:nth-child(even) {
+                background-color: #4b5563 !important;
+            }
+            
+            .markdown-content tr:hover {
+                background-color: #6b7280 !important;
+            }
+            
+            /* Harmonized dark mode - white tones */
+            .markdown-content h1 {
+                color: #ffffff !important; /* Pure white for main titles */
+                border-bottom-color: #6b7280 !important; /* Lighter border */
+            }
+            
+            .markdown-content h2 {
+                color: #f9fafb !important; /* Bright white for section headers */
+                border-bottom-color: #6b7280 !important; /* Lighter border */
+            }
+            
+            .markdown-content h3 {
+                color: #f3f4f6 !important; /* Very light grey for subsections */
+            }
+            
+            .markdown-content h4 {
+                color: #e5e7eb !important; /* Light grey for h4 */
+            }
+            
+            .markdown-content h5 {
+                color: #d1d5db !important; /* Medium light grey for h5 */
+            }
+            
+            .markdown-content h6 {
+                color: #d1d5db !important; /* Medium light grey for h6 */
+            }
+            
+            /* Harmonized dark mode text elements - white tones */
+            .markdown-content p {
+                color: #ffffff !important; /* Pure white for paragraphs */
+                line-height: 1.7 !important; /* Better line spacing for dark mode */
+            }
+            
+            /* Enhanced dark mode for code elements */
+            .markdown-content code {
+                background-color: #4b5563 !important; /* Lighter dark background */
+                color: #ffffff !important; /* Pure white text */
+                border: none !important; /* No border */
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important; /* Enhanced shadow */
+            }
+            
+            /* Harmonized dark mode strong/bold text - white tones */
+            .markdown-content strong, .markdown-content b {
+                color: #ffffff !important; /* Pure white for bold text */
+                font-weight: 700 !important;
+            }
+            
+            /* Harmonized dark mode italic text - white tones */
+            .markdown-content em, .markdown-content i {
+                color: #ffffff !important; /* Pure white for italic text */
+                font-style: italic !important;
+            }
+            
+            /* Enhanced dark mode for links */
+            .markdown-content a {
+                color: #60a5fa !important; /* Light blue for links */
+                text-decoration: underline !important;
+            }
+            
+            .markdown-content a:hover {
+                color: #93c5fd !important; /* Lighter blue on hover */
+                text-decoration: underline !important;
+            }
+            
+            /* Harmonized dark mode lists - white tones */
+            .markdown-content ul, .markdown-content ol {
+                color: #ffffff !important; /* Pure white for lists */
+            }
+            
+            .markdown-content ul li, .markdown-content ol li {
+                color: #ffffff !important; /* Pure white for list items */
+                background-color: #374151 !important; /* Dark background for list items */
+                border-left-color: #9ca3af !important; /* Light grey left border */
+            }
+            
+            .markdown-content ul li::before, .markdown-content ol li::before {
+                background-color: #9ca3af !important; /* Light grey background for bullets/numbers */
+                color: #1f2937 !important; /* Dark text on light background */
+            }
+            
+            /* Enhanced dark mode for pre blocks */
+            .markdown-content pre {
+                background-color: #1f2937 !important; /* Dark background */
+                color: #f9fafb !important; /* Bright white text */
+                border: 1px solid #4b5563 !important; /* Lighter border */
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important; /* Enhanced shadow */
+            }
+            
+            .markdown-content pre code {
+                background-color: transparent !important; /* No background for code inside pre */
+                color: inherit !important; /* Inherit color from pre */
+                border: none !important; /* No border for code inside pre */
+                box-shadow: none !important; /* No shadow for code inside pre */
+            }
+            
+            /* Harmonized dark mode legal elements - white tones */
+            .legal-article {
+                background-color: #4b5563 !important; /* Lighter dark background */
+                color: #ffffff !important; /* Pure white text */
+                border: none !important; /* No border */
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important; /* Subtle shadow */
+            }
+            
+            .legal-case {
+                color: #ffffff !important; /* Pure white for case names */
+                font-weight: 700 !important;
+            }
+            
+            .legal-page {
+                color: #ffffff !important; /* Pure white for page references */
+                font-style: italic !important;
+            }
+            
+            .legal-list-item {
+                color: #ffffff !important; /* Pure white for list items */
+                background-color: #374151 !important; /* Dark background */
+                border-left-color: #9ca3af !important; /* Light grey left border */
+            }
+            
+            /* Enhanced dark mode for horizontal rules */
+            .markdown-content hr {
+                border-color: #4b5563 !important; /* Lighter border for dark mode */
+                background-color: #4b5563 !important; /* Lighter background */
+            }
+            
+            /* Enhanced dark mode for emphasis and highlights */
+            .markdown-content mark {
+                background-color: #fbbf24 !important; /* Yellow highlight */
+                color: #1f2937 !important; /* Dark text on yellow */
+                padding: 0.125rem 0.25rem !important;
+                border-radius: 0.25rem !important;
             }
         }
         
@@ -384,6 +830,7 @@
             /* Mobile-specific input styling */
             .mobile-input {
                 -webkit-appearance: none;
+                appearance: none;
                 border-radius: 8px;
                 font-size: 16px;
                 line-height: 1.4;
@@ -425,6 +872,63 @@
             }
         }
         
+        /* Copy button styling */
+        .copy-button {
+            transition: all 0.2s ease-in-out;
+            background-color: #f3f4f6;
+            border: none;
+            color: #374151;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 1rem;
+        }
+        
+        .copy-button:hover {
+            background-color: #e5e7eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .copy-button.copied {
+            background-color: #f3f4f6;
+            color: #10b981;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .copy-button.copied:hover {
+            background-color: #e5e7eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Dark mode copy button */
+        [data-theme="dark"] .copy-button {
+            background-color: #374151;
+            color: #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        [data-theme="dark"] .copy-button:hover {
+            background-color: #4b5563;
+            color: #f9fafb;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+        
+        [data-theme="dark"] .copy-button.copied {
+            background-color: #374151;
+            color: #10b981;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        [data-theme="dark"] .copy-button.copied:hover {
+            background-color: #4b5563;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+
         /* Dark mode styles */
         :root {
             --bg-primary: #f9fafb;
@@ -625,6 +1129,32 @@
         const { useState, useEffect, useRef } = React;
 
         const ChatMessage = ({ message, isUser, isLoading = false }) => {
+            const [copySuccess, setCopySuccess] = useState(false);
+            
+            const copyToClipboard = async (text) => {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    setCopySuccess(true);
+                    setTimeout(() => setCopySuccess(false), 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        setCopySuccess(true);
+                        setTimeout(() => setCopySuccess(false), 2000);
+                    } catch (fallbackErr) {
+                        console.error('Fallback copy failed: ', fallbackErr);
+                    }
+                    document.body.removeChild(textArea);
+                }
+            };
+            
             const renderMarkdown = (text) => {
                 if (isUser) {
                     return (
@@ -681,6 +1211,15 @@
                                     className="markdown-content text-sm leading-tight"
                                     dangerouslySetInnerHTML={{ __html: html }}
                                 />
+                                <div className="flex justify-end mt-3">
+                                    <button
+                                        onClick={() => copyToClipboard(text)}
+                                        className={`px-3 py-2 rounded-lg transition-all duration-200 copy-button`}
+                                        title={copySuccess ? "Copied!" : "Copy answer to clipboard"}
+                                    >
+                                        <i className={`fas ${copySuccess ? 'fa-check' : 'fa-copy'} text-sm`}></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     );
@@ -690,6 +1229,15 @@
                         <div className="flex justify-start mb-6 sm:mb-8">
                             <div className="max-w-xs sm:max-w-2xl lg:max-w-3xl w-full">
                                 <p className="text-sm leading-tight break-words">{text}</p>
+                                <div className="flex justify-end mt-3">
+                                    <button
+                                        onClick={() => copyToClipboard(text)}
+                                        className={`px-3 py-2 rounded-lg transition-all duration-200 copy-button`}
+                                        title={copySuccess ? "Copied!" : "Copy answer to clipboard"}
+                                    >
+                                        <i className={`fas ${copySuccess ? 'fa-check' : 'fa-copy'} text-sm`}></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     );
@@ -973,7 +1521,6 @@
         const Sidebar = ({ conversations, currentConversationId, onSelectConversation, onNewConversation, isMobileMenuOpen, setIsMobileMenuOpen, user, onLogout, formatTimestamp, isDarkMode, toggleDarkMode, setRenameConversationId, setRenameValue, setShowRenameModal, deleteConversation }) => {
             const [isCollapsed, setIsCollapsed] = useState(false);
             const [showUserMenu, setShowUserMenu] = useState(false);
-            const [showConversationMenu, setShowConversationMenu] = useState(null);
             const [editingConversationId, setEditingConversationId] = useState(null);
             const [editingTitle, setEditingTitle] = useState('');
             
@@ -1003,25 +1550,11 @@
                 }
             };
 
-            // Close conversation menu when clicking outside
-            useEffect(() => {
-                const handleClickOutside = (event) => {
-                    if (showConversationMenu && !event.target.closest('.conversation-menu-container')) {
-                        setShowConversationMenu(null);
-                    }
-                };
-
-                if (showConversationMenu) {
-                    document.addEventListener('mousedown', handleClickOutside);
-                    return () => document.removeEventListener('mousedown', handleClickOutside);
-                }
-            }, [showConversationMenu]);
 
             // Handle start rename
             const handleStartRename = (conversationId, currentTitle) => {
                 setEditingConversationId(conversationId);
                 setEditingTitle(currentTitle);
-                setShowConversationMenu(null);
             };
 
             const handleSaveRename = async () => {
@@ -1145,73 +1678,6 @@
                                                 </div>
                                             </div>
                                             
-                                            {/* Conversation Menu */}
-                                            <div className="relative ml-2 conversation-menu-container flex-shrink-0" style={{ zIndex: 999999, isolation: 'isolate', overflow: 'visible' }}>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setShowConversationMenu(conversation.id);
-                                                    }}
-                                                    className={`p-1 text-gray-400 hover:text-white dark:text-gray-500 dark:hover:text-gray-200 transition-colors ${showConversationMenu ? 'opacity-0' : 'opacity-100'}`}
-                                                    title="Conversation Options"
-                                                    style={{ 
-                                                        display: showConversationMenu && showConversationMenu !== conversation.id ? 'none' : 'block'
-                                                    }}
-                                                >
-                                                    <i className="fas fa-ellipsis-h text-xs"></i>
-                                                </button>
-                                                
-                                                {/* Conversation Menu Dropdown */}
-                                                {showConversationMenu === conversation.id && (
-                                                    <div 
-                                                        className="absolute top-full mt-1 w-40 rounded-lg"
-                                                        style={{ 
-                                                            position: 'absolute',
-                                                            right: '-8px',
-                                                            zIndex: 9999999,
-                                                            backgroundColor: '#111827',
-                                                            backdropFilter: 'none',
-                                                            WebkitBackdropFilter: 'none',
-                                                            isolation: 'isolate',
-                                                            transform: 'translateZ(0)',
-                                                            willChange: 'transform',
-                                                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)'
-                                                        }}
-                                                    >
-                                                        <div className="py-1" style={{ backgroundColor: '#111827' }}>
-                                                            {/* Rename Conversation */}
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setShowConversationMenu(null);
-                                                                    handleStartRename(conversation.id, conversation.title || '');
-                                                                }}
-                                                                className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-600 transition-colors flex items-center"
-                                                                style={{ backgroundColor: '#111827' }}
-                                                            >
-                                                                <i className="fas fa-pen mr-2"></i>
-                                                                Rename
-                                                            </button>
-                                                            
-                                                            {/* Delete Conversation */}
-                                                            {conversation.title !== 'New Conversation' && conversation.messages && conversation.messages.length > 0 && (
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setShowConversationMenu(null);
-                                                                        deleteConversation(conversation.id);
-                                                                    }}
-                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-red-900/20 transition-colors flex items-center"
-                                                                    style={{ color: '#ff8583', backgroundColor: '#111827' }}
-                                                                >
-                                                                    <i className="fas fa-trash mr-2" style={{ color: '#ff8583' }}></i>
-                                                                    Delete
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -1236,15 +1702,24 @@
                                     <div className="relative">
                                         <button
                                             onClick={() => setShowUserMenu(!showUserMenu)}
-                                            className="p-1 text-gray-400 hover:text-white transition-colors"
+                                            className="text-gray-400 hover:text-white transition-colors hover:bg-gray-700 flex items-center justify-center"
                                             title="User Menu"
+                                            style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '50%',
+                                                padding: '0',
+                                                border: 'none',
+                                                outline: 'none',
+                                                background: 'transparent'
+                                            }}
                                         >
                                             <i className="fas fa-ellipsis-v text-xs"></i>
                                         </button>
                                         
                                         {/* User Dropdown Menu */}
                                         {showUserMenu && (
-                                            <div className="absolute bottom-full right-0 mb-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 z-50">
+                                            <div className="absolute bottom-full right-0 mb-2 w-48 bg-gray-800 shadow-lg border border-gray-700 z-50" style={{ borderRadius: '16px' }}>
                                                 <div className="p-3 border-b border-gray-700">
                                                     <p className="text-sm font-medium text-white truncate">
                                                         {user?.display_name || 'User'}
@@ -1257,29 +1732,9 @@
                                                     <button
                                                         onClick={() => {
                                                             setShowUserMenu(false);
-                                                            // Add profile edit functionality here
-                                                        }}
-                                                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                                                    >
-                                                        <i className="fas fa-user-edit mr-2"></i>
-                                                        Edit Profile
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setShowUserMenu(false);
-                                                            // Add settings functionality here
-                                                        }}
-                                                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                                                    >
-                                                        <i className="fas fa-cog mr-2"></i>
-                                                        Settings
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setShowUserMenu(false);
                                                             toggleDarkMode();
                                                         }}
-                                                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                                                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors rounded-lg mx-1"
                                                     >
                                                         <i className={`fas ${isDarkMode ? 'fa-sun' : 'fa-moon'} mr-2`}></i>
                                                         {isDarkMode ? 'Light Mode' : 'Dark Mode'}
@@ -1290,7 +1745,7 @@
                                                             setShowUserMenu(false);
                                                             onLogout();
                                                         }}
-                                                        className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
+                                                        className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors rounded-lg mx-1"
                                                     >
                                                         <i className="fas fa-sign-out-alt mr-2"></i>
                                                         Logout
@@ -1438,7 +1893,7 @@
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify(refreshToken),
+                        body: JSON.stringify({ refresh_token: refreshToken }),
                     });
 
                     if (response.ok) {
@@ -1905,54 +2360,54 @@
                         if (response.status === 401 || response.status === 403) {
                             // Token expired or not authenticated, try refresh
                             try {
-                                await refreshToken();
-                                // Retry with new token
-                                const newToken = localStorage.getItem('access_token');
+                            await refreshToken();
+                            // Retry with new token
+                            const newToken = localStorage.getItem('access_token');
                                 if (!newToken) {
                                     // No token available, redirect to auth
                                     window.location.href = '/auth.html';
                                     return;
                                 }
                                 
-                                const retryResponse = await fetch('/chat', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${newToken}`
-                                    },
-                                    body: JSON.stringify({ message: messageText }),
-                                });
-                                
-                                if (!retryResponse.ok) {
+                            const retryResponse = await fetch('/chat', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${newToken}`
+                                },
+                                body: JSON.stringify({ message: messageText }),
+                            });
+                            
+                            if (!retryResponse.ok) {
                                     if (retryResponse.status === 401 || retryResponse.status === 403) {
                                         // Still not authenticated, redirect to auth
                                         window.location.href = '/auth.html';
                                         return;
                                     }
                                     throw new Error(`Server error: ${retryResponse.status}`);
+                            }
+                            
+                            const data = await retryResponse.json();
+                            const assistantMessage = {
+                                id: Date.now() + 1,
+                                text: data.response,
+                                isUser: false
+                            };
+                            
+                            setConversations(prev => prev.map(conv => 
+                                conv.id === conversationId 
+                                    ? { ...conv, messages: [...conv.messages, assistantMessage] }
+                                    : conv
+                            ));
+                            
+                            // Save to Firestore
+                            setConversations(prev => {
+                                const currentConv = prev.find(c => c.id === conversationId);
+                                if (currentConv) {
+                                    saveConversation(conversationId, currentConv.messages);
                                 }
-                                
-                                const data = await retryResponse.json();
-                                const assistantMessage = {
-                                    id: Date.now() + 1,
-                                    text: data.response,
-                                    isUser: false
-                                };
-                                
-                                setConversations(prev => prev.map(conv => 
-                                    conv.id === conversationId 
-                                        ? { ...conv, messages: [...conv.messages, assistantMessage] }
-                                        : conv
-                                ));
-                                
-                                // Save to Firestore
-                                setConversations(prev => {
-                                    const currentConv = prev.find(c => c.id === conversationId);
-                                    if (currentConv) {
-                                        saveConversation(conversationId, currentConv.messages);
-                                    }
-                                    return prev;
-                                });
+                                return prev;
+                            });
                             } catch (refreshError) {
                                 console.error('Token refresh failed:', refreshError);
                                 window.location.href = '/auth.html';
@@ -2229,8 +2684,17 @@
                                     <div className="relative header-menu-container">
                                         <button
                                             onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                            className="text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
                                             title="Menu"
+                                            style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '50%',
+                                                padding: '0',
+                                                border: 'none',
+                                                outline: 'none',
+                                                background: 'transparent'
+                                            }}
                                         >
                                             {/* Vertical dots on mobile, horizontal dots on desktop */}
                                             <i className="fas fa-ellipsis-v sm:hidden"></i>
@@ -2239,7 +2703,7 @@
                                         
                                         {/* Header Menu Dropdown */}
                                         {showHeaderMenu && (
-                                            <div className="absolute right-0 top-full mt-2 mr-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-50">
+                                            <div className="absolute right-0 top-full mt-2 mr-2 w-48 bg-white dark:bg-gray-800 shadow-xl z-50" style={{ borderRadius: '16px' }}>
                                                 <div className="py-1">
                                                     {/* Dark Mode Toggle */}
                                                     <button
@@ -2247,7 +2711,7 @@
                                                             setShowHeaderMenu(false);
                                                             toggleDarkMode();
                                                         }}
-                                                        className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center"
+                                                        className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center rounded-lg mx-1"
                                                         style={{ color: isDarkMode ? 'white' : '#374151' }}
                                                     >
                                                         <i className={`fas ${isDarkMode ? 'fa-sun' : 'fa-moon'} mr-2`} style={{ color: isDarkMode ? 'white' : '#374151' }}></i>
@@ -2261,7 +2725,7 @@
                                                                 setShowHeaderMenu(false);
                                                                 setShowRenameModal(true);
                                                             }}
-                                                            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center"
+                                                            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center rounded-lg mx-1"
                                                             style={{ color: isDarkMode ? 'white' : '#374151' }}
                                                         >
                                                             <i className="fas fa-pen mr-2" style={{ color: isDarkMode ? 'white' : '#374151' }}></i>
@@ -2276,7 +2740,7 @@
                                                                 setShowHeaderMenu(false);
                                                                 deleteConversation(currentConversationId);
                                                             }}
-                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center"
+                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center rounded-lg mx-1"
                                                             style={{ color: '#ff8583' }}
                                                         >
                                                             <i className="fas fa-trash mr-2" style={{ color: '#ff8583' }}></i>

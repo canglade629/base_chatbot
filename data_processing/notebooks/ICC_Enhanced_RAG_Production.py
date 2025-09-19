@@ -152,9 +152,10 @@ class LegalAnalysis:
     analysis: str
     key_findings: List[str]
     citations: List[str]
-    confidence_score: float
-    sources_used: int
-    processing_time: float
+    resource_list: Dict[str, List[Dict[str, str]]] = None
+    confidence_score: float = 0.0
+    sources_used: int = 0
+    processing_time: float = 0.0
     conversation_id: Optional[str] = None
 
 # COMMAND ----------
@@ -935,7 +936,7 @@ class EnhancedICCRAGSystem:
         )
     
     def _prepare_context_for_llm_corrected(self, results: List[SearchResult]) -> str:
-        """Prepare retrieved results for LLM consumption with corrected metadata."""
+        """Prepare retrieved results for LLM consumption with corrected metadata and source mapping."""
         context_parts = []
         for i, result in enumerate(results, 1):
             context_part = f"=== SOURCE {i} ===\n"
@@ -970,37 +971,257 @@ class EnhancedICCRAGSystem:
         
         return "\n\n".join(context_parts)
     
+    def _prepare_structured_context_for_llm(self, results: List[SearchResult]) -> Dict[str, Any]:
+        """Prepare structured context with source mapping for better citation tracking."""
+        geneva_sources = []
+        judgment_sources = []
+        
+        for i, result in enumerate(results, 1):
+            source_info = {
+                "source_id": i,
+                "document_name": result.metadata.get('doc_id' if result.source_type == "judgment" else 'doc_name', result.source),
+                "source_type": result.source_type,
+                "page_number": result.page_number,
+                "section": result.section,
+                "article": result.article,
+                "summary": result.summary,
+                "content": result.content[:1000] if len(result.content) > 1000 else result.content,
+                "score": result.score
+            }
+            
+            if result.source_type == "judgment":
+                judgment_sources.append(source_info)
+            else:
+                geneva_sources.append(source_info)
+        
+        return {
+            "geneva_sources": geneva_sources,
+            "judgment_sources": judgment_sources,
+            "all_sources": geneva_sources + judgment_sources
+        }
+    
     def _extract_citations_corrected(self, analysis_text: str) -> List[str]:
-        """Extract citations with corrected document names and page formatting."""
+        """Extract citations with corrected document names and page formatting, including markdown formatting."""
         import re
         citations = []
         
-        # Look for case name patterns (judgment documents)
-        case_pattern = r'([A-Z][A-Z\s]+(?:TJ|AJ))'
+        # Look for case name patterns (judgment documents) - both with and without markdown
+        case_pattern = r'(\*\*)?([A-Z][A-Z\s]+(?:TJ|AJ))(\*\*)?'
         case_matches = re.findall(case_pattern, analysis_text)
-        citations.extend([f"**{match.strip()}**" for match in case_matches])
+        for match in case_matches:
+            case_name = match[1].strip()
+            if case_name not in [c.replace('**', '').strip() for c in citations]:
+                citations.append(f"**{case_name}**")
         
-        # Look for Geneva Convention document names
-        geneva_pattern = r'([0-9]+-GC-[IVX]+-EN|commentary/[0-9]+\.[0-9]+_pp_[0-9]+_[0-9]+_[A-Za-z_]+)'
+        # Look for Geneva Convention document names - both with and without markdown
+        geneva_pattern = r'(\*\*)?([0-9]+-GC-[IVX]+-EN|commentary/[0-9]+\.[0-9]+_pp_[0-9]+_[0-9]+_[A-Za-z_]+)(\*\*)?'
         geneva_matches = re.findall(geneva_pattern, analysis_text)
-        citations.extend([f"**{match}**" for match in geneva_matches])
+        for match in geneva_matches:
+            doc_name = match[1]
+            if doc_name not in [c.replace('**', '').strip() for c in citations]:
+                citations.append(f"**{doc_name}**")
         
-        # Look for article references
-        article_pattern = r'(Article\s+\d+(?:\([a-z]\))?)'
+        # Look for article references - both with and without markdown
+        article_pattern = r'(`)?(Article\s+\d+(?:\([a-z]\))?)(`)?'
         article_matches = re.findall(article_pattern, analysis_text)
-        citations.extend([f"`{match}`" for match in article_matches])
+        for match in article_matches:
+            article = match[1]
+            if article not in [c.replace('`', '').strip() for c in citations]:
+                citations.append(f"`{article}`")
         
-        # Look for page references
-        page_pattern = r'(page\s+\d+(?:-\d+)?)'
+        # Look for page references - both with and without markdown
+        page_pattern = r'(\*)?(page\s+\d+(?:-\d+)?)(\*)?'
         page_matches = re.findall(page_pattern, analysis_text, re.IGNORECASE)
-        citations.extend([f"*{match}*" for match in page_matches])
+        for match in page_matches:
+            page = match[1]
+            if page not in [c.replace('*', '').strip() for c in citations]:
+                citations.append(f"*{page}*")
         
         # Look for section type references
-        section_pattern = r'(section\s+[A-Za-z_]+)'
+        section_pattern = r'(\*)?(section\s+[A-Za-z_]+)(\*)?'
         section_matches = re.findall(section_pattern, analysis_text, re.IGNORECASE)
-        citations.extend([f"*{match}*" for match in section_matches])
+        for match in section_matches:
+            section = match[1]
+            if section not in [c.replace('*', '').strip() for c in citations]:
+                citations.append(f"*{section}*")
+        
+        # Look for legal concepts in bold formatting
+        legal_concept_pattern = r'\*\*([^*]+(?:principle|responsibility|distinction|proportionality|necessity)[^*]*)\*\*'
+        concept_matches = re.findall(legal_concept_pattern, analysis_text, re.IGNORECASE)
+        for match in concept_matches:
+            if match not in [c.replace('**', '').strip() for c in citations]:
+                citations.append(f"**{match}**")
         
         return list(set(citations))
+    
+    def _extract_resource_list(self, analysis_text: str, structured_context: Dict[str, Any]) -> Dict[str, List[Dict[str, str]]]:
+        """Extract comprehensive resource list from analysis text and context."""
+        import re
+        
+        resources = {
+            "geneva_documents": [],
+            "judgment_documents": [],
+            "additional_references": []
+        }
+        
+        # Extract Geneva Convention documents from the Resources Consulted section
+        geneva_section_pattern = r'## Resources Consulted.*?### Geneva Convention Documents(.*?)(?=###|$)'
+        geneva_match = re.search(geneva_section_pattern, analysis_text, re.DOTALL | re.IGNORECASE)
+        if geneva_match:
+            geneva_content = geneva_match.group(1)
+            # Extract document names, articles, and pages
+            geneva_item_pattern = r'\*\*([^*]+)\*\*\s*-\s*`([^`]+)`\s*\(\*([^*]+)\*\)'
+            geneva_items = re.findall(geneva_item_pattern, geneva_content)
+            for doc_name, article, page in geneva_items:
+                resources["geneva_documents"].append({
+                    "document_name": doc_name.strip(),
+                    "article": article.strip(),
+                    "page": page.strip()
+                })
+        
+        # Extract ICTY/ICC judgments from the Resources Consulted section
+        judgment_section_pattern = r'### ICTY/ICC Judgments(.*?)(?=###|$)'
+        judgment_match = re.search(judgment_section_pattern, analysis_text, re.DOTALL | re.IGNORECASE)
+        if judgment_match:
+            judgment_content = judgment_match.group(1)
+            # Extract case names, pages, and source types
+            judgment_item_pattern = r'\*\*([^*]+)\*\*\s*\(\*([^*]+)\*\)\s*-\s*\[([^\]]+)\]'
+            judgment_items = re.findall(judgment_item_pattern, judgment_content)
+            for case_name, page, source_type in judgment_items:
+                resources["judgment_documents"].append({
+                    "case_name": case_name.strip(),
+                    "page": page.strip(),
+                    "source_type": source_type.strip()
+                })
+        
+        # Extract additional references
+        additional_section_pattern = r'### Additional References(.*?)(?=##|$)'
+        additional_match = re.search(additional_section_pattern, analysis_text, re.DOTALL | re.IGNORECASE)
+        if additional_match:
+            additional_content = additional_match.group(1)
+            # Extract document names, articles, and pages
+            additional_item_pattern = r'\*\*([^*]+)\*\*\s*-\s*`([^`]+)`\s*\(\*([^*]+)\*\)'
+            additional_items = re.findall(additional_item_pattern, additional_content)
+            for doc_name, article, page in additional_items:
+                resources["additional_references"].append({
+                    "document_name": doc_name.strip(),
+                    "article": article.strip(),
+                    "page": page.strip()
+                })
+        
+        # If no structured resource list found, extract from context
+        if not any(resources.values()):
+            # Extract from structured context
+            for source in structured_context.get('geneva_sources', []):
+                resources["geneva_documents"].append({
+                    "document_name": source.get('document_name', ''),
+                    "article": source.get('article', ''),
+                    "page": source.get('page_number', '')
+                })
+            
+            for source in structured_context.get('judgment_sources', []):
+                resources["judgment_documents"].append({
+                    "case_name": source.get('document_name', ''),
+                    "page": source.get('page_number', ''),
+                    "source_type": source.get('source_type', 'Judgment')
+                })
+        
+        return resources
+    
+    def _extract_structured_citations(self, analysis_text: str, structured_context: Dict[str, Any]) -> Dict[str, List[str]]:
+        """Extract citations organized by section and mapped to sources."""
+        import re
+        
+        citations_by_section = {
+            "legal_framework": [],
+            "case_law_analysis": [],
+            "synthesis": [],
+            "key_findings": []
+        }
+        
+        # Split analysis into sections
+        sections = re.split(r'##\s+(Legal Framework|Case Law Analysis|Synthesis and Analysis|Key Findings)', analysis_text)
+        
+        # Map section content to section names
+        section_content = {}
+        for i in range(1, len(sections), 2):
+            if i + 1 < len(sections):
+                section_name = sections[i].lower().replace(' ', '_').replace('and', '')
+                section_content[section_name] = sections[i + 1]
+        
+        # Extract citations for each section
+        for section_name, content in section_content.items():
+            if not content:
+                continue
+                
+            section_citations = []
+            
+            # Extract case names - both with and without markdown
+            case_pattern = r'(\*\*)?([A-Z][A-Z\s]+(?:TJ|AJ))(\*\*)?'
+            case_matches = re.findall(case_pattern, content)
+            for match in case_matches:
+                case_name = match[1].strip()
+                if case_name not in [c.replace('**', '').strip() for c in section_citations]:
+                    section_citations.append(f"**{case_name}**")
+            
+            # Extract Geneva Convention documents - both with and without markdown
+            geneva_pattern = r'(\*\*)?([0-9]+-GC-[IVX]+-EN|commentary/[0-9]+\.[0-9]+_pp_[0-9]+_[0-9]+_[A-Za-z_]+)(\*\*)?'
+            geneva_matches = re.findall(geneva_pattern, content)
+            for match in geneva_matches:
+                doc_name = match[1]
+                if doc_name not in [c.replace('**', '').strip() for c in section_citations]:
+                    section_citations.append(f"**{doc_name}**")
+            
+            # Extract article references - both with and without markdown
+            article_pattern = r'(`)?(Article\s+\d+(?:\([a-z]\))?)(`)?'
+            article_matches = re.findall(article_pattern, content)
+            for match in article_matches:
+                article = match[1]
+                if article not in [c.replace('`', '').strip() for c in section_citations]:
+                    section_citations.append(f"`{article}`")
+            
+            # Extract page references - both with and without markdown
+            page_pattern = r'(\*)?(page\s+\d+(?:-\d+)?)(\*)?'
+            page_matches = re.findall(page_pattern, content, re.IGNORECASE)
+            for match in page_matches:
+                page = match[1]
+                if page not in [c.replace('*', '').strip() for c in section_citations]:
+                    section_citations.append(f"*{page}*")
+            
+            # Extract legal concepts in bold formatting
+            legal_concept_pattern = r'\*\*([^*]+(?:principle|responsibility|distinction|proportionality|necessity)[^*]*)\*\*'
+            concept_matches = re.findall(legal_concept_pattern, content, re.IGNORECASE)
+            for match in concept_matches:
+                if match not in [c.replace('**', '').strip() for c in section_citations]:
+                    section_citations.append(f"**{match}**")
+            
+            # Map to appropriate section
+            if 'legal_framework' in section_name:
+                citations_by_section["legal_framework"] = list(set(section_citations))
+            elif 'case_law' in section_name:
+                citations_by_section["case_law_analysis"] = list(set(section_citations))
+            elif 'synthesis' in section_name:
+                citations_by_section["synthesis"] = list(set(section_citations))
+            elif 'key_findings' in section_name:
+                citations_by_section["key_findings"] = list(set(section_citations))
+        
+        return citations_by_section
+    
+    def _format_source_reference_list(self, sources: List[Dict[str, Any]]) -> str:
+        """Format source information for LLM reference."""
+        source_list = []
+        for source in sources:
+            source_info = f"Source {source['source_id']}: {source['document_name']}"
+            if source['page_number']:
+                source_info += f" (page {source['page_number']})"
+            if source['article']:
+                source_info += f" - {source['article']}"
+            if source['section']:
+                source_info += f" - {source['section']}"
+            source_info += f" [{source['source_type']}]"
+            source_list.append(source_info)
+        
+        return "\n".join(source_list)
     
     def _extract_key_findings(self, analysis_text: str) -> List[str]:
         """Extract key findings from the analysis text."""
@@ -1032,7 +1253,7 @@ class EnhancedICCRAGSystem:
         return min(total_score, 1.0)
     
     def generate_legal_analysis_with_enhanced_routing(self, question: str, context: RetrievalContext = None, conversation_id: str = None) -> LegalAnalysis:
-        """Generate comprehensive legal analysis using enhanced routing context."""
+        """Generate comprehensive legal analysis using enhanced routing context with structured output and source citations."""
         import time
         start_time = time.time()
         
@@ -1040,34 +1261,68 @@ class EnhancedICCRAGSystem:
         if context is None:
             context = self.retrieve_context_enhanced_routing(question)
         
-        # Prepare context for LLM
+        # Prepare structured context for better source mapping
+        structured_context = self._prepare_structured_context_for_llm(context.all_results)
+        
+        # Prepare context text for LLM
         context_text = self._prepare_context_for_llm_corrected(context.all_results)
         
-        # Enhanced system prompt for dual-endpoint analysis
+        # Enhanced system prompt for clear legal analysis with comprehensive resource listing
         system_prompt = """You are an expert international criminal law researcher specializing in ICTY/ICC case law and Geneva Convention analysis.
 
 **Your Task:**
-Provide comprehensive legal analysis that synthesizes information from both Geneva Convention framework and case law applications.
+Provide a clear and concise legal analysis that answers the question using information from both Geneva Convention framework and case law applications, with proper markdown formatting, source citations, and a comprehensive resource list.
 
-**Analysis Structure:**
-1. **Legal Framework** - Geneva Convention principles and articles
-2. **Case Law Analysis** - How these principles have been applied in ICTY/ICC judgments
-3. **Synthesis and Analysis** - Connect the legal framework with practical applications
+**REQUIRED STRUCTURE:**
+```markdown
+# Legal Analysis
 
-**Formatting Requirements:**
-- Use markdown formatting with clear headings
-- Bold important legal concepts and case names
-- Use `code formatting` for article numbers
-- Use *italics* for page references
-- Include bullet points for key findings
-- Provide specific citations with document names and page numbers
+## Legal Framework
+- **Key Principles**: List the main legal principles with `Article X` references
+- **Relevant Articles**: Explain important articles with **document citations**
 
-**Citation Format:**
+## Case Law Application
+- **Key Cases**: Discuss relevant cases with **case names** and *page references*
+- **Legal Findings**: Explain how the law was applied in practice
+
+## Key Findings
+- **Main Points**: List the most important findings with supporting citations
+- **Practical Implications**: Provide actionable insights for legal practice
+
+## Resources Consulted
+### Geneva Convention Documents
+- **Document Name** - `Article X` (*page Y*)
+- **Document Name** - `Article X` (*page Y*)
+
+### ICTY/ICC Judgments
+- **Case Name** (*page Y*) - [Source Type]
+- **Case Name** (*page Y*) - [Source Type]
+
+### Additional References
+- **Document Name** - `Article X` (*page Y*)
+```
+
+**MARKDOWN FORMATTING:**
+- Use **bold** for case names, legal concepts, and key terms
+- Use `code formatting` for article numbers and legal provisions
+- Use *italics* for page references and emphasis
+- Use `>` for important quotes
+- Use `-` for bullet points
+
+**CITATION FORMAT:**
 - Case names: **Tadic TJ**, **Blaskic AJ**
 - Articles: `Article 4`, `Article 13`
 - Pages: *page 45*, *page 45-46*
+- Source references: (Source X, page Y)
 
-Focus on practical legal insights that connect the Geneva Convention framework with real-world case law applications."""
+**RESOURCE LISTING REQUIREMENTS:**
+- List ALL documents referenced in your analysis
+- Include document names, articles, and page numbers
+- Separate Geneva Convention documents from case law
+- Include source type (Trial Chamber, Appeals Chamber, etc.)
+- Be comprehensive and accurate
+
+Keep the analysis clear, focused, and practical for legal professionals."""
         
         human_prompt = f"""# Legal Research Question
 {question}
@@ -1075,20 +1330,54 @@ Focus on practical legal insights that connect the Geneva Convention framework w
 # Retrieved Context
 {context_text}
 
-# Analysis Requirements
-Please provide a comprehensive legal analysis that:
-1. Identifies relevant Geneva Convention articles and principles
-2. Shows how these principles have been applied in ICTY/ICC case law
-3. Connects the legal framework with practical applications
-4. Uses proper legal citation formatting
-5. Provides clear, actionable insights for defense teams
+# Available Sources
+- **Geneva Convention Sources**: {len(structured_context['geneva_sources'])} sources
+- **Case Law Sources**: {len(structured_context['judgment_sources'])} sources
+- **Total Sources**: {len(structured_context['all_sources'])} sources
 
-# Required Markdown Structure
+# Analysis Requirements
+Please provide a clear legal analysis that:
+1. **Identifies relevant Geneva Convention articles and principles** (with citations)
+2. **Shows how these principles were applied in ICTY/ICC case law** (with case citations)
+3. **Provides practical insights for legal professionals**
+4. **Uses proper markdown formatting and source citations**
+5. **Includes a comprehensive resource list at the end**
+
+# Required Structure
 ## Legal Framework
-## Case Law Analysis  
-## Synthesis and Analysis
+- List key principles with `Article X` references
+- Explain important articles with **document citations**
+
+## Case Law Application
+- Discuss relevant cases with **case names** and *page references*
+- Explain how the law was applied in practice
+
 ## Key Findings
-## Sources and Citations"""
+- List the most important findings with supporting citations
+- Provide actionable insights for legal practice
+
+## Resources Consulted
+### Geneva Convention Documents
+- List all Geneva Convention documents used with articles and pages
+- Format: **Document Name** - `Article X` (*page Y*)
+
+### ICTY/ICC Judgments
+- List all case law sources used with case names and pages
+- Format: **Case Name** (*page Y*) - [Source Type]
+
+### Additional References
+- List any other documents or sources referenced
+- Format: **Document Name** - `Article X` (*page Y*)
+
+# Source Information for Reference
+{self._format_source_reference_list(structured_context['all_sources'])}
+
+# Important Notes for Resource Listing
+- Include ALL sources that informed your analysis
+- Be specific about document names, articles, and page numbers
+- Separate Geneva Convention documents from case law
+- Include chamber information for judgments (Trial Chamber, Appeals Chamber, etc.)
+- Ensure accuracy and completeness in your resource list"""
 
         try:
             response = self.llm.invoke([
@@ -1098,9 +1387,11 @@ Please provide a comprehensive legal analysis that:
             
             analysis_text = response.content
             
-            # Extract components
+            # Extract components using enhanced methods
             key_findings = self._extract_key_findings(analysis_text)
             citations = self._extract_citations_corrected(analysis_text)
+            structured_citations = self._extract_structured_citations(analysis_text, structured_context)
+            resource_list = self._extract_resource_list(analysis_text, structured_context)
             confidence_score = self._calculate_confidence_score(analysis_text, context)
             
             processing_time = time.time() - start_time
@@ -1110,6 +1401,7 @@ Please provide a comprehensive legal analysis that:
                 analysis=analysis_text,
                 key_findings=key_findings,
                 citations=citations,
+                resource_list=resource_list,
                 confidence_score=confidence_score,
                 sources_used=len(context.all_results),
                 processing_time=processing_time,
@@ -1123,6 +1415,7 @@ Please provide a comprehensive legal analysis that:
                 analysis=f"Error generating analysis: {str(e)}",
                 key_findings=[],
                 citations=[],
+                resource_list={"geneva_documents": [], "judgment_documents": [], "additional_references": []},
                 confidence_score=0.0,
                 sources_used=0,
                 processing_time=time.time() - start_time,
@@ -1290,6 +1583,7 @@ def create_mlflow_model():
         analysis: str = Field(..., description="Generated legal analysis")
         key_findings: List[str] = Field(..., description="Key findings extracted from analysis")
         citations: List[str] = Field(..., description="Citations and references")
+        resource_list: Dict[str, List[Dict[str, str]]] = Field(..., description="Comprehensive list of resources consulted")
         confidence_score: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the analysis")
         sources_used: int = Field(..., ge=0, description="Number of sources used")
         processing_time: float = Field(..., ge=0.0, description="Processing time in seconds")
@@ -1305,6 +1599,11 @@ def create_mlflow_model():
             "analysis": "The ICTY Trial Chamber considered several key factors...",
             "key_findings": ["Factor 1", "Factor 2"],
             "citations": ["**Tadic TJ**", "`Article 4`"],
+            "resource_list": {
+                "geneva_documents": [{"document_name": "365-GC-I-EN", "article": "Article 4", "page": "page 45"}],
+                "judgment_documents": [{"case_name": "Tadic TJ", "page": "page 123", "source_type": "Trial Chamber"}],
+                "additional_references": []
+            },
             "confidence_score": 0.85,
             "sources_used": 5,
             "processing_time": 2.5
@@ -1486,6 +1785,7 @@ def create_mlflow_model():
                     "analysis": analysis.analysis,
                     "key_findings": analysis.key_findings,
                     "citations": analysis.citations,
+                    "resource_list": analysis.resource_list or {"geneva_documents": [], "judgment_documents": [], "additional_references": []},
                     "confidence_score": float(analysis.confidence_score),
                     "sources_used": int(analysis.sources_used),
                     "processing_time": float(analysis.processing_time)
@@ -1500,6 +1800,7 @@ def create_mlflow_model():
                     "analysis": f"Error generating analysis: {str(e)}",
                     "key_findings": [],
                     "citations": [],
+                    "resource_list": {"geneva_documents": [], "judgment_documents": [], "additional_references": []},
                     "confidence_score": 0.0,
                     "sources_used": 0,
                     "processing_time": 0.0
@@ -1967,6 +2268,7 @@ def create_simple_serving_model():
                     "analysis": analysis.analysis,
                     "key_findings": analysis.key_findings,
                     "citations": analysis.citations,
+                    "resource_list": analysis.resource_list or {"geneva_documents": [], "judgment_documents": [], "additional_references": []},
                     "confidence_score": float(analysis.confidence_score),
                     "sources_used": int(analysis.sources_used),
                     "processing_time": float(analysis.processing_time)
@@ -1981,6 +2283,7 @@ def create_simple_serving_model():
                     "analysis": f"Error generating analysis: {str(e)}",
                     "key_findings": [],
                     "citations": [],
+                    "resource_list": {"geneva_documents": [], "judgment_documents": [], "additional_references": []},
                     "confidence_score": 0.0,
                     "sources_used": 0,
                     "processing_time": 0.0

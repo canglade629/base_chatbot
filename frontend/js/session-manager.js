@@ -10,8 +10,8 @@ class SessionManager {
         this.isAuthenticated = false;
         this.refreshTimer = null;
         this.activityTimer = null;
-        this.sessionTimeout = 30 * 60 * 1000; // 30 minutes
-        this.refreshBuffer = 5 * 60 * 1000; // 5 minutes before expiry
+        this.sessionTimeout = 8 * 60 * 60 * 1000; // 8 hours
+        this.refreshBuffer = 60 * 60 * 1000; // 1 hour before expiry
         this.lastActivity = Date.now();
         this.isRefreshing = false;
         this.refreshQueue = [];
@@ -185,7 +185,7 @@ class SessionManager {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(this.refreshToken),
+                body: JSON.stringify({ refresh_token: this.refreshToken }),
             });
 
             if (response.ok) {

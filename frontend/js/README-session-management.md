@@ -13,8 +13,8 @@ The core session management service that handles:
 - **Event System**: Provides events for session state changes
 
 #### Key Features:
-- **Automatic Token Refresh**: Refreshes tokens 5 minutes before expiry
-- **Session Timeout**: 30-minute inactivity timeout (configurable)
+- **Automatic Token Refresh**: Refreshes tokens 1 hour before expiry
+- **Session Timeout**: 8-hour inactivity timeout (configurable)
 - **Activity Tracking**: Monitors mouse, keyboard, and touch events
 - **Graceful Degradation**: Falls back to manual token management if session manager fails
 - **Event-Driven**: Emits events for session changes
@@ -56,15 +56,15 @@ A subtle status indicator that shows:
 ### Session Manager Settings
 ```javascript
 // In session-manager.js
-this.sessionTimeout = 30 * 60 * 1000; // 30 minutes
-this.refreshBuffer = 5 * 60 * 1000;   // 5 minutes before expiry
+this.sessionTimeout = 8 * 60 * 60 * 1000; // 8 hours
+this.refreshBuffer = 60 * 60 * 1000;      // 1 hour before expiry
 ```
 
 ### Backend Token Settings
 ```python
 # In auth_service.py
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour
-REFRESH_TOKEN_EXPIRE_DAYS = 30    # 30 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
+REFRESH_TOKEN_EXPIRE_DAYS = 30     # 30 days
 ```
 
 ## Events
