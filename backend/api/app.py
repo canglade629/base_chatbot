@@ -49,12 +49,15 @@ except Exception as e:
 load_dotenv()
 
 # Databricks endpoint configuration
-DATABRICKS_ENDPOINT = "https://dbc-0619d7f5-0bda.cloud.databricks.com/serving-endpoints/icc_chatbot_endpoint/invocations"
+DATABRICKS_HOST = os.getenv("DATABRICKS_HOST", "https://dbc-0619d7f5-0bda.cloud.databricks.com")
+DATABRICKS_ENDPOINT = f"{DATABRICKS_HOST}/serving-endpoints/icc_chatbot_endpoint/invocations"
 DATABRICKS_TOKEN = os.getenv("DATABRICKS_TOKEN")
 
 if not DATABRICKS_TOKEN:
     logger.warning("⚠️ DATABRICKS_TOKEN not found in environment variables")
     logger.warning("Chat functionality will be limited")
+else:
+    logger.info(f"✅ Databricks configured: {DATABRICKS_HOST}")
 
 app = FastAPI(title="ICC Legal Research Assistant")
 
@@ -204,9 +207,9 @@ async def call_databricks_endpoint(query: str, conversation_id: str = None) -> D
     # Prepare request payload for Databricks format
     payload = {
         "inputs": {
-            "query": [query],
-            "num_results": [10],
-            "conversation_id": [conversation_id]
+            "question": query,
+            "top_k": 10,
+            "conversation_id": conversation_id
         }
     }
     

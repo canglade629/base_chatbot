@@ -1571,6 +1571,14 @@
 
             const sendMessage = async (messageText) => {
                 console.log('Sending message:', messageText);
+                
+                // Check if user is authenticated before sending message
+                if (!isAuthenticated) {
+                    console.log('User not authenticated, redirecting to auth page');
+                    window.location.href = '/auth.html';
+                    return;
+                }
+                
                 setHasUserInteracted(true); // Mark that user has interacted
                 
                 // Determine which conversation to use
@@ -1671,47 +1679,66 @@
                     }
 
                     if (!response.ok) {
-                        if (response.status === 401) {
-                            // Token expired, try refresh
-                            await refreshToken();
-                            // Retry with new token
-                            const newToken = localStorage.getItem('access_token');
-                            const retryResponse = await fetch('/chat', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${newToken}`
-                                },
-                                body: JSON.stringify({ message: messageText }),
-                            });
-                            
-                            if (!retryResponse.ok) {
-                                throw new Error('Authentication failed');
-                            }
-                            
-                            const data = await retryResponse.json();
-                            const assistantMessage = {
-                                id: Date.now() + 1,
-                                text: data.response,
-                                isUser: false
-                            };
-                            
-                            setConversations(prev => prev.map(conv => 
-                                conv.id === conversationId 
-                                    ? { ...conv, messages: [...conv.messages, assistantMessage] }
-                                    : conv
-                            ));
-                            
-                            // Save to Firestore
-                            setConversations(prev => {
-                                const currentConv = prev.find(c => c.id === conversationId);
-                                if (currentConv) {
-                                    saveConversation(conversationId, currentConv.messages);
+                        if (response.status === 401 || response.status === 403) {
+                            // Token expired or not authenticated, try refresh
+                            try {
+                                await refreshToken();
+                                // Retry with new token
+                                const newToken = localStorage.getItem('access_token');
+                                if (!newToken) {
+                                    // No token available, redirect to auth
+                                    window.location.href = '/auth.html';
+                                    return;
                                 }
-                                return prev;
-                            });
+                                
+                                const retryResponse = await fetch('/chat', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${newToken}`
+                                    },
+                                    body: JSON.stringify({ message: messageText }),
+                                });
+                                
+                                if (!retryResponse.ok) {
+                                    if (retryResponse.status === 401 || retryResponse.status === 403) {
+                                        // Still not authenticated, redirect to auth
+                                        window.location.href = '/auth.html';
+                                        return;
+                                    }
+                                    throw new Error(`Server error: ${retryResponse.status}`);
+                                }
+                                
+                                const data = await retryResponse.json();
+                                const assistantMessage = {
+                                    id: Date.now() + 1,
+                                    text: data.response,
+                                    isUser: false
+                                };
+                                
+                                setConversations(prev => prev.map(conv => 
+                                    conv.id === conversationId 
+                                        ? { ...conv, messages: [...conv.messages, assistantMessage] }
+                                        : conv
+                                ));
+                                
+                                // Save to Firestore
+                                setConversations(prev => {
+                                    const currentConv = prev.find(c => c.id === conversationId);
+                                    if (currentConv) {
+                                        saveConversation(conversationId, currentConv.messages);
+                                    }
+                                    return prev;
+                                });
+                            } catch (refreshError) {
+                                console.error('Token refresh failed:', refreshError);
+                                window.location.href = '/auth.html';
+                                return;
+                            }
+                        } else if (response.status === 502) {
+                            throw new Error('Service temporarily unavailable. Please try again.');
                         } else {
-                            throw new Error('Failed to send message');
+                            throw new Error(`Server error: ${response.status}`);
                         }
                     } else {
                         const data = await response.json();
@@ -1741,9 +1768,22 @@
                     }
                 } catch (error) {
                     console.error('Error sending message:', error);
+                    
+                    // Check if it's an authentication error
+                    if (error.message.includes('Authentication failed') || error.message.includes('401') || error.message.includes('403')) {
+                        // Redirect to auth page for authentication errors
+                        window.location.href = '/auth.html';
+                        return;
+                    }
+                    
+                    // Show user-friendly error message
                     const errorMessage = {
                         id: Date.now() + 1,
-                        text: "Sorry, I encountered an error. Please try again.",
+                        text: error.message.includes('Service temporarily unavailable') 
+                            ? "🔧 Service temporarily unavailable. Please try again in a moment."
+                            : error.message.includes('Server error')
+                            ? `⚠️ Server error: ${error.message}. Please try again.`
+                            : "❌ Sorry, I encountered an error. Please try again.",
                         isUser: false
                     };
                     
@@ -1880,6 +1920,7 @@
             // Redirect to auth page if not authenticated
             if (!isAuthenticated) {
                 // Redirect immediately to auth page
+                console.log('User not authenticated, redirecting to auth page');
                 window.location.href = '/auth.html';
                 return null;
             }
