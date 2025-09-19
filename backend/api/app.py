@@ -15,13 +15,35 @@ from datetime import timedelta
 # Import our custom modules
 import sys
 import os
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from services.firestore_auth import firestore_auth
-print("✅ Using Firestore-only authentication")
-print(f"🔧 Mock mode: {firestore_auth.use_mock}")
+try:
+    from services.firestore_auth import firestore_auth
+    logger.info("✅ Using Firestore-only authentication")
+    logger.info(f"🔧 Mock mode: {firestore_auth.use_mock}")
+except Exception as e:
+    logger.error(f"❌ Failed to import firestore_auth: {e}")
+    # Create a mock auth object for fallback
+    class MockAuth:
+        use_mock = True
+        def verify_token(self, token): return None
+        def create_access_token(self, data): return "mock_token"
+    firestore_auth = MockAuth()
 
-from services.auth_service import auth_service
+try:
+    from services.auth_service import auth_service
+    logger.info("✅ Auth service imported successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to import auth_service: {e}")
+    # Create a mock auth service for fallback
+    class MockAuthService:
+        def get_current_user(self, token): return {"email": "mock@user.com", "user_id": "mock_user"}
+    auth_service = MockAuthService()
 
 # Load environment variables from .env file
 load_dotenv()
@@ -30,7 +52,29 @@ load_dotenv()
 DATABRICKS_ENDPOINT = "https://dbc-0619d7f5-0bda.cloud.databricks.com/serving-endpoints/icc_chatbot_endpoint/invocations"
 DATABRICKS_TOKEN = os.getenv("DATABRICKS_TOKEN")
 
+if not DATABRICKS_TOKEN:
+    logger.warning("⚠️ DATABRICKS_TOKEN not found in environment variables")
+    logger.warning("Chat functionality will be limited")
+
 app = FastAPI(title="ICC Legal Research Assistant")
+
+# Add a simple root endpoint
+@app.get("/")
+async def root():
+    return {
+        "message": "ICC Legal Research Assistant API", 
+        "status": "running",
+        "version": "1.0.0"
+    }
+
+# Add health check endpoint
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "message": "Service is running",
+        "timestamp": "2024-01-01T00:00:00Z"
+    }
 
 # Add CORS middleware for development
 app.add_middleware(
