@@ -3,29 +3,34 @@
 .gitignore
 
 # Python
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .Python
-env
-pip-log.txt
-pip-delete-this-directory.txt
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.pytest_cache
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Virtual environments
 venv/
 ENV/
 env/
 .venv/
+.venv*/
 
 # IDE
 .vscode/
@@ -43,17 +48,35 @@ env/
 ehthumbs.db
 Thumbs.db
 
-# Project specific
-firebase-credentials/
-*.md
+# Logs
+*.log
+logs/
+
+# Test files
 test_*.py
-__pycache__/
+*_test.py
+tests/
 .pytest_cache/
-databricks/
-chunking/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+
+# Development files
+env.example
+.env
+requirements.txt
+setup_local.py
+
+# Documentation
+*.md
+docs/
+
+# Data processing (not needed in production)
+data_processing/
 data/
-output/
-save/
 *.ipynb
 *.parquet
 *.pdf
@@ -68,13 +91,13 @@ save/
 *.h5
 *.model
 
-# Development files
-requirements.txt
-env.example
-.env
-.DS_Store
-*.log
+# Firebase credentials (should be mounted as secrets)
+config/firebase-credentials/*.json
+!config/firebase-credentials/README.md
 
-# Documentation
-*.md
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
 

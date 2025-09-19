@@ -4,9 +4,11 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import random
 import os
+import httpx
+import asyncio
 from dotenv import load_dotenv
 from datetime import timedelta
 
@@ -24,6 +26,10 @@ from services.auth_service import auth_service
 # Load environment variables from .env file
 load_dotenv()
 
+# Databricks endpoint configuration
+DATABRICKS_ENDPOINT = "https://dbc-0619d7f5-0bda.cloud.databricks.com/serving-endpoints/icc_chatbot_endpoint/invocations"
+DATABRICKS_TOKEN = os.getenv("DATABRICKS_TOKEN")
+
 app = FastAPI(title="ICC Legal Research Assistant")
 
 # Add CORS middleware for development
@@ -40,6 +46,10 @@ import os
 frontend_static_path = os.path.join(os.path.dirname(__file__), "../../frontend/static")
 app.mount("/static", StaticFiles(directory=frontend_static_path), name="static")
 
+# Mount JS files from frontend/js directory
+frontend_js_path = os.path.join(os.path.dirname(__file__), "../../frontend/js")
+app.mount("/js", StaticFiles(directory=frontend_js_path), name="js")
+
 # Security
 security = HTTPBearer()
 
@@ -49,6 +59,43 @@ class ChatMessage(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+
+# Databricks API models
+class DatabricksRequest(BaseModel):
+    query: List[str]
+    num_results: List[int]
+    conversation_id: List[str]
+
+class Source(BaseModel):
+    source: str
+    source_type: str
+    section: str
+    page_number: int
+    article: Optional[str] = None
+    relevance_score: float
+
+class DatabricksResponse(BaseModel):
+    question: str
+    analysis: str
+    routing_decision: str
+    sources_used: int
+    confidence_score: float
+    key_findings: List[str]
+    citations: List[str]
+    processing_time_seconds: float
+    conversation_id: str
+    sources: List[Source]
+
+class EnhancedChatResponse(BaseModel):
+    response: str
+    analysis: Optional[str] = None
+    routing_decision: Optional[str] = None
+    sources_used: Optional[int] = None
+    confidence_score: Optional[float] = None
+    key_findings: Optional[List[str]] = None
+    citations: Optional[List[str]] = None
+    processing_time_seconds: Optional[float] = None
+    sources: Optional[List[Dict[str, Any]]] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -83,6 +130,55 @@ class ConversationResponse(BaseModel):
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
     messages: Optional[list] = None
+
+# Function to call Databricks endpoint
+async def call_databricks_endpoint(query: str, conversation_id: str = None) -> Dict[str, Any]:
+    """Call the Databricks chatbot endpoint"""
+    if not DATABRICKS_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Databricks token not configured"
+        )
+    
+    if conversation_id is None:
+        conversation_id = f"conv_{random.randint(100000, 999999)}"
+    
+    # Prepare request payload for Databricks format
+    payload = {
+        "inputs": {
+            "query": [query],
+            "num_results": [10],
+            "conversation_id": [conversation_id]
+        }
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                DATABRICKS_ENDPOINT,
+                json=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {DATABRICKS_TOKEN}"
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Request to chatbot service timed out"
+        )
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Chatbot service error: {e.response.status_code}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to call chatbot service: {str(e)}"
+        )
 
 # Dependency to get current user
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -524,7 +620,7 @@ async def read_auth_html():
     auth_file = os.path.join(os.path.dirname(__file__), "../../frontend/components/auth.html")
     return FileResponse(auth_file)
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat", response_model=EnhancedChatResponse)
 async def chat_endpoint(
     chat_message: ChatMessage,
     current_user: dict = Depends(get_current_user)
@@ -533,13 +629,69 @@ async def chat_endpoint(
     if not chat_message.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     
-    # Simulate processing delay
-    import asyncio
-    await asyncio.sleep(random.uniform(0.5, 1.5))
-    
-    # Return a random canned response
-    response = random.choice(CANNED_RESPONSES)
-    return ChatResponse(response=response)
+    try:
+        # Call the real Databricks endpoint
+        databricks_response = await call_databricks_endpoint(chat_message.message)
+        
+        # Extract the response from the Databricks format
+        # The response comes wrapped in a "predictions" array
+        response_data = {}
+        if isinstance(databricks_response, dict) and "predictions" in databricks_response:
+            predictions = databricks_response["predictions"]
+            if isinstance(predictions, list) and len(predictions) > 0:
+                response_data = predictions[0]
+        elif isinstance(databricks_response, list) and len(databricks_response) > 0:
+            response_data = databricks_response[0]
+        
+        # Format the response with analysis and sources
+        if response_data:
+            formatted_response = f"# {response_data.get('question', 'Legal Analysis')}\n\n"
+            formatted_response += f"**Analysis:**\n{response_data.get('analysis', 'No analysis available')}\n\n"
+            
+            if response_data.get('key_findings'):
+                formatted_response += f"**Key Findings:**\n"
+                for finding in response_data.get('key_findings', []):
+                    formatted_response += f"• {finding}\n"
+                formatted_response += "\n"
+            
+            if response_data.get('citations'):
+                formatted_response += f"**Citations:**\n"
+                for citation in response_data.get('citations', []):
+                    formatted_response += f"• {citation}\n"
+                formatted_response += "\n"
+            
+            if response_data.get('sources'):
+                formatted_response += f"**Sources Used:** {response_data.get('sources_used', 0)}\n"
+                formatted_response += f"**Confidence Score:** {response_data.get('confidence_score', 0):.2f}\n"
+                formatted_response += f"**Processing Time:** {response_data.get('processing_time_seconds', 0):.2f}s\n\n"
+                
+                formatted_response += "**Source Details:**\n"
+                for source in response_data.get('sources', [])[:5]:  # Show first 5 sources
+                    formatted_response += f"• {source.get('source', 'Unknown')} (Page {source.get('page_number', 'N/A')}) - Relevance: {source.get('relevance_score', 0):.2f}\n"
+        else:
+            # Fallback to canned response if format is unexpected
+            formatted_response = random.choice(CANNED_RESPONSES)
+        
+        return EnhancedChatResponse(
+            response=formatted_response,
+            analysis=response_data.get('analysis'),
+            routing_decision=response_data.get('routing_decision'),
+            sources_used=response_data.get('sources_used'),
+            confidence_score=response_data.get('confidence_score'),
+            key_findings=response_data.get('key_findings'),
+            citations=response_data.get('citations'),
+            processing_time_seconds=response_data.get('processing_time_seconds'),
+            sources=response_data.get('sources')
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions from the Databricks call
+        raise
+    except Exception as e:
+        # Fallback to canned response on any other error
+        print(f"Error calling Databricks endpoint: {str(e)}")
+        response = random.choice(CANNED_RESPONSES)
+        return EnhancedChatResponse(response=response)
 
 if __name__ == "__main__":
     import uvicorn

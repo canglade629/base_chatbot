@@ -387,6 +387,12 @@
                 z-index: 1;
             }
             
+            /* Ensure conversation menu appears above everything */
+            .conversation-menu-container {
+                position: relative;
+                z-index: 99999;
+            }
+            
             /* Make sure header doesn't get hidden by scrolling */
             .main-chat-area .mobile-header {
                 position: sticky;
@@ -473,7 +479,7 @@
                         <div className="flex justify-center mb-6 sm:mb-8">
                             <div className="max-w-xs sm:max-w-2xl lg:max-w-3xl w-full px-3 sm:px-4 lg:px-6">
                                 <div className="flex items-center space-x-1 text-sm sm:text-base lg:text-lg text-gray-600">
-                                    <span>ICC Legal Research Assistant is typing</span>
+                                    <span>AI is working on your request</span>
                                     <div className="typing-dots"></div>
                                 </div>
                             </div>
@@ -507,6 +513,14 @@
                 }
             };
 
+            const handlePaste = (e) => {
+                // Allow default paste behavior
+                // This ensures paste functionality works properly
+                console.log('Paste event triggered');
+                e.stopPropagation();
+                // Let the default paste behavior handle the rest
+            };
+
             const checkScroll = () => {
                 if (textareaRef.current) {
                     const hasScrollbar = textareaRef.current.scrollHeight > textareaRef.current.clientHeight;
@@ -516,11 +530,29 @@
 
             useEffect(() => {
                 if (textareaRef.current) {
+                    // Reset height to auto first
                     textareaRef.current.style.height = 'auto';
-                    textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+                    // Set height based on scroll height
+                    const scrollHeight = textareaRef.current.scrollHeight;
+                    textareaRef.current.style.height = scrollHeight + 'px';
                     checkScroll();
                 }
             }, [message]);
+
+            // Additional effect to ensure proper sizing on mount/refresh
+            useEffect(() => {
+                if (textareaRef.current) {
+                    // Small delay to ensure DOM is fully rendered
+                    const timer = setTimeout(() => {
+                        if (textareaRef.current) {
+                            textareaRef.current.style.height = 'auto';
+                            const scrollHeight = textareaRef.current.scrollHeight;
+                            textareaRef.current.style.height = scrollHeight + 'px';
+                        }
+                    }, 100);
+                    return () => clearTimeout(timer);
+                }
+            }, [isCentered]);
 
             // Auto-focus the textarea when component mounts (but not on mobile unless it's a new conversation)
             useEffect(() => {
@@ -619,7 +651,7 @@
             if (isCentered) {
                 return (
                     <div className="flex-1 flex items-start justify-center p-4 sm:p-6 lg:p-8 pt-24 sm:pt-32 lg:pt-40">
-                        <div className="w-full max-w-xs sm:max-w-lg lg:max-w-2xl">
+                        <div className="w-full max-w-xs sm:max-w-2xl lg:max-w-3xl">
                             <div className="text-center mb-6 sm:mb-8">
                                 <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center mx-auto mb-3 sm:mb-4 logo-container">
                                     <img 
@@ -645,6 +677,7 @@
                                         value={message}
                                         onChange={(e) => setMessage(e.target.value)}
                                         onKeyPress={handleKeyPress}
+                                        onPaste={handlePaste}
                                         onFocus={handleFocus}
                                         onBlur={handleBlur}
                                         onClick={handleClick}
@@ -684,6 +717,7 @@
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
                                     onKeyPress={handleKeyPress}
+                                    onPaste={handlePaste}
                                     onFocus={handleFocus}
                                     onBlur={handleBlur}
                                     onClick={handleClick}
@@ -713,9 +747,12 @@
             );
         };
 
-        const Sidebar = ({ conversations, currentConversationId, onSelectConversation, onNewConversation, isMobileMenuOpen, setIsMobileMenuOpen, user, onLogout, formatTimestamp, isDarkMode, toggleDarkMode }) => {
+        const Sidebar = ({ conversations, currentConversationId, onSelectConversation, onNewConversation, isMobileMenuOpen, setIsMobileMenuOpen, user, onLogout, formatTimestamp, isDarkMode, toggleDarkMode, setRenameConversationId, setRenameValue, setShowRenameModal, deleteConversation }) => {
             const [isCollapsed, setIsCollapsed] = useState(false);
             const [showUserMenu, setShowUserMenu] = useState(false);
+            const [showConversationMenu, setShowConversationMenu] = useState(null);
+            const [editingConversationId, setEditingConversationId] = useState(null);
+            const [editingTitle, setEditingTitle] = useState('');
             
             // Swipe functionality for mobile
             const [touchStart, setTouchStart] = useState(null);
@@ -743,6 +780,48 @@
                 }
             };
 
+            // Close conversation menu when clicking outside
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (showConversationMenu && !event.target.closest('.conversation-menu-container')) {
+                        setShowConversationMenu(null);
+                    }
+                };
+
+                if (showConversationMenu) {
+                    document.addEventListener('mousedown', handleClickOutside);
+                    return () => document.removeEventListener('mousedown', handleClickOutside);
+                }
+            }, [showConversationMenu]);
+
+            // Handle start rename
+            const handleStartRename = (conversationId, currentTitle) => {
+                setEditingConversationId(conversationId);
+                setEditingTitle(currentTitle);
+                setShowConversationMenu(null);
+            };
+
+            const handleSaveRename = async () => {
+                if (editingConversationId && editingTitle.trim()) {
+                    await renameConversation(editingConversationId, editingTitle.trim());
+                    setEditingConversationId(null);
+                    setEditingTitle('');
+                }
+            };
+
+            const handleCancelRename = () => {
+                setEditingConversationId(null);
+                setEditingTitle('');
+            };
+
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter') {
+                    handleSaveRename();
+                } else if (e.key === 'Escape') {
+                    handleCancelRename();
+                }
+            };
+
             return (
                 <>
                     {/* Mobile Overlay */}
@@ -762,11 +841,12 @@
 
                     {/* Sidebar */}
                     <div 
-                        className={`bg-gray-900 text-white transition-all duration-300 flex flex-col h-screen fixed lg:relative z-50 ${
+                        className={`bg-gray-900 text-white transition-all duration-300 flex flex-col h-screen fixed lg:relative z-[1000] ${
                             isCollapsed ? 'w-16' : 'w-64'
                         } ${
                             isMobileMenuOpen ? 'mobile-menu-visible' : 'mobile-menu-hidden'
                         }`}
+                        style={{ overflow: 'visible' }}
                         onTouchStart={onTouchStart}
                         onTouchMove={onTouchMove}
                         onTouchEnd={onTouchEnd}
@@ -793,37 +873,122 @@
                         </div>
 
                         {/* Conversations List */}
-                        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                        <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ overflow: 'visible' }}>
                             {conversations.map((conversation) => (
                                 <div
                                     key={conversation.id}
-                                    onClick={() => {
-                                        onSelectConversation(conversation.id);
-                                        setIsMobileMenuOpen(false);
-                                    }}
-                                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                                    className={`p-3 rounded-lg transition-colors ${
                                         conversation.id === currentConversationId
                                             ? 'bg-gray-700'
                                             : 'hover:bg-gray-800'
                                     }`}
+                                    style={{ overflow: 'visible', height: '60px' }}
                                 >
                                     {isCollapsed ? (
                                         <div className="flex justify-center">
                                             <i className="fas fa-comment text-gray-400"></i>
                                         </div>
                                     ) : (
-                                        <div>
-                                            <div className="flex items-center justify-between mb-1">
-                                                <p className="text-sm font-medium truncate">
-                                                    {conversation.title || 'New Conversation'}
-                                                </p>
-                                                <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
-                                                    {formatTimestamp(conversation.updated_at)}
-                                                </span>
+                                        <div className="flex items-center justify-between h-full">
+                                            <div 
+                                                className="flex-1 min-w-0 cursor-pointer"
+                                                onClick={() => {
+                                                    if (editingConversationId !== conversation.id) {
+                                                        onSelectConversation(conversation.id);
+                                                        setIsMobileMenuOpen(false);
+                                                    }
+                                                }}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    {editingConversationId === conversation.id ? (
+                                                        <input
+                                                            type="text"
+                                                            value={editingTitle}
+                                                            onChange={(e) => setEditingTitle(e.target.value)}
+                                                            onKeyPress={handleKeyPress}
+                                                            onBlur={handleSaveRename}
+                                                            onFocus={(e) => e.target.select()}
+                                                            className="text-sm font-medium flex-1 min-w-0 bg-transparent border-none outline-none text-white"
+                                                            autoFocus
+                                                        />
+                                                    ) : (
+                                                        <p className="text-sm font-medium truncate flex-1 min-w-0">
+                                                            {conversation.title || 'New Conversation'}
+                                                        </p>
+                                                    )}
+                                                    <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
+                                                        {formatTimestamp(conversation.updated_at)}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-gray-400 truncate">
-                                                {conversation.lastMessage || 'No messages yet'}
-                                            </p>
+                                            
+                                            {/* Conversation Menu */}
+                                            <div className="relative ml-2 conversation-menu-container flex-shrink-0" style={{ zIndex: 999999, isolation: 'isolate', overflow: 'visible' }}>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setShowConversationMenu(conversation.id);
+                                                    }}
+                                                    className={`p-1 text-gray-400 hover:text-white dark:text-gray-500 dark:hover:text-gray-200 transition-colors ${showConversationMenu ? 'opacity-0' : 'opacity-100'}`}
+                                                    title="Conversation Options"
+                                                    style={{ 
+                                                        display: showConversationMenu && showConversationMenu !== conversation.id ? 'none' : 'block'
+                                                    }}
+                                                >
+                                                    <i className="fas fa-ellipsis-h text-xs"></i>
+                                                </button>
+                                                
+                                                {/* Conversation Menu Dropdown */}
+                                                {showConversationMenu === conversation.id && (
+                                                    <div 
+                                                        className="absolute top-full mt-1 w-40 rounded-lg"
+                                                        style={{ 
+                                                            position: 'absolute',
+                                                            right: '-8px',
+                                                            zIndex: 9999999,
+                                                            backgroundColor: '#111827',
+                                                            backdropFilter: 'none',
+                                                            WebkitBackdropFilter: 'none',
+                                                            isolation: 'isolate',
+                                                            transform: 'translateZ(0)',
+                                                            willChange: 'transform',
+                                                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+                                                        }}
+                                                    >
+                                                        <div className="py-1" style={{ backgroundColor: '#111827' }}>
+                                                            {/* Rename Conversation */}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setShowConversationMenu(null);
+                                                                    handleStartRename(conversation.id, conversation.title || '');
+                                                                }}
+                                                                className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-600 transition-colors flex items-center"
+                                                                style={{ backgroundColor: '#111827' }}
+                                                            >
+                                                                <i className="fas fa-pen mr-2"></i>
+                                                                Rename
+                                                            </button>
+                                                            
+                                                            {/* Delete Conversation */}
+                                                            {conversation.title !== 'New Conversation' && conversation.messages && conversation.messages.length > 0 && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setShowConversationMenu(null);
+                                                                        deleteConversation(conversation.id);
+                                                                    }}
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-red-900/20 transition-colors flex items-center"
+                                                                    style={{ color: '#ff8583', backgroundColor: '#111827' }}
+                                                                >
+                                                                    <i className="fas fa-trash mr-2" style={{ color: '#ff8583' }}></i>
+                                                                    Delete
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -944,6 +1109,10 @@
             const [isMobile, setIsMobile] = useState(false);
             const [isDarkMode, setIsDarkMode] = useState(false);
             const [hasUserInteracted, setHasUserInteracted] = useState(false);
+            const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+            const [showRenameModal, setShowRenameModal] = useState(false);
+            const [renameValue, setRenameValue] = useState('');
+            const [renameConversationId, setRenameConversationId] = useState(null);
             const messagesEndRef = useRef(null);
 
             const currentConversation = conversations.find(c => c.id === currentConversationId);
@@ -1213,10 +1382,12 @@
                         };
                         setConversations(prev => [formattedConv, ...prev]);
                         setCurrentConversationId(newConv.id);
+                        return newConv.id; // Return the conversation ID
                     }
                 } catch (error) {
                     console.error('Error creating conversation:', error);
                 }
+                return null;
             };
 
             const saveConversation = async (conversationId, messages) => {
@@ -1360,6 +1531,27 @@
                 scrollToBottom();
             }, [messages]);
 
+            // Initialize rename value when modal opens
+            useEffect(() => {
+                if (showRenameModal && currentConversation) {
+                    setRenameValue(currentConversation.title || '');
+                }
+            }, [showRenameModal, currentConversation]);
+
+            // Close header menu when clicking outside
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (showHeaderMenu && !event.target.closest('.header-menu-container')) {
+                        setShowHeaderMenu(false);
+                    }
+                };
+
+                if (showHeaderMenu) {
+                    document.addEventListener('mousedown', handleClickOutside);
+                    return () => document.removeEventListener('mousedown', handleClickOutside);
+                }
+            }, [showHeaderMenu]);
+
             // Auto-focus input when conversation changes (but not on mobile after first response)
             useEffect(() => {
                 // Only auto-focus on desktop or if it's a new conversation or user hasn't interacted yet
@@ -1381,9 +1573,14 @@
                 console.log('Sending message:', messageText);
                 setHasUserInteracted(true); // Mark that user has interacted
                 
-                // If no current conversation, create one first
-                if (!currentConversationId) {
-                    await createNewConversation();
+                // Determine which conversation to use
+                let conversationId = currentConversationId;
+                if (!conversationId) {
+                    conversationId = await createNewConversation();
+                    if (!conversationId) {
+                        console.error('Failed to create conversation');
+                        return;
+                    }
                 }
                 
                 const userMessage = {
@@ -1393,17 +1590,20 @@
                 };
                 console.log('User message created:', userMessage);
 
+                // Immediately show loading state and user message
+                setIsLoading(true);
+
                 // Update current conversation with user message
                 setConversations(prevConversations => {
                     console.log('Previous conversations:', prevConversations);
                     const updatedConversations = prevConversations.map(conv =>
-                        conv.id === currentConversationId
+                        conv.id === conversationId
                             ? { ...conv, messages: [...conv.messages, userMessage], lastMessage: messageText }
                             : conv
                     );
                     
                     // Check if this is the first message and update title
-                    const currentConv = updatedConversations.find(c => c.id === currentConversationId);
+                    const currentConv = updatedConversations.find(c => c.id === conversationId);
                     if (currentConv && currentConv.messages.length === 1) {
                         const firstWords = messageText.split(' ').slice(0, 4).join(' ');
                         const newTitle = firstWords.length > 0 ? firstWords : "New Conversation";
@@ -1413,7 +1613,7 @@
                         (async () => {
                             try {
                                 if (window.sessionManager) {
-                                    await window.sessionManager.authenticatedRequest(`/conversations/${currentConversationId}`, {
+                                    await window.sessionManager.authenticatedRequest(`/conversations/${conversationId}`, {
                                         method: 'PUT',
                                         headers: {
                                             'Content-Type': 'application/json'
@@ -1422,7 +1622,7 @@
                                     });
                                 } else {
                                     const token = localStorage.getItem('access_token');
-                                    await fetch(`/conversations/${currentConversationId}`, {
+                                    await fetch(`/conversations/${conversationId}`, {
                                         method: 'PUT',
                                         headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -1440,15 +1640,13 @@
                     // Save to Firestore asynchronously
                     (async () => {
                         if (currentConv) {
-                            await saveConversation(currentConversationId, currentConv.messages);
+                            await saveConversation(conversationId, currentConv.messages);
                         }
                     })();
                     
                     console.log('Updated conversations:', updatedConversations);
                     return updatedConversations;
                 });
-
-                setIsLoading(true);
 
                 try {
                     let response;
@@ -1499,16 +1697,16 @@
                             };
                             
                             setConversations(prev => prev.map(conv => 
-                                conv.id === currentConversationId 
+                                conv.id === conversationId 
                                     ? { ...conv, messages: [...conv.messages, assistantMessage] }
                                     : conv
                             ));
                             
                             // Save to Firestore
                             setConversations(prev => {
-                                const currentConv = prev.find(c => c.id === currentConversationId);
+                                const currentConv = prev.find(c => c.id === conversationId);
                                 if (currentConv) {
-                                    saveConversation(currentConversationId, currentConv.messages);
+                                    saveConversation(conversationId, currentConv.messages);
                                 }
                                 return prev;
                             });
@@ -1527,15 +1725,15 @@
                         // Update current conversation with assistant response
                         setConversations(prev => {
                             const updatedConversations = prev.map(conv =>
-                                conv.id === currentConversationId
+                                conv.id === conversationId
                                     ? { ...conv, messages: [...conv.messages, assistantMessage] }
                                     : conv
                             );
                             
                             // Save to Firestore
-                            const currentConv = updatedConversations.find(c => c.id === currentConversationId);
+                            const currentConv = updatedConversations.find(c => c.id === conversationId);
                             if (currentConv) {
-                                saveConversation(currentConversationId, currentConv.messages);
+                                saveConversation(conversationId, currentConv.messages);
                             }
                             
                             return updatedConversations;
@@ -1550,7 +1748,7 @@
                     };
                     
                     setConversations(prev => prev.map(conv => 
-                        conv.id === currentConversationId 
+                        conv.id === conversationId 
                             ? { ...conv, messages: [...conv.messages, errorMessage] }
                             : conv
                     ));
@@ -1584,7 +1782,88 @@
                 await createNewConversation();
             };
 
-            const hasMessages = messages.length > 0;
+            const deleteConversation = async (conversationId) => {
+                if (!conversationId) return;
+                
+                try {
+                    let response;
+                    if (window.sessionManager) {
+                        response = await window.sessionManager.authenticatedRequest(`/conversations/${conversationId}`, {
+                            method: 'DELETE'
+                        });
+                    } else {
+                        const token = localStorage.getItem('access_token');
+                        response = await fetch(`/conversations/${conversationId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                    }
+
+                    if (response.ok) {
+                        // Remove conversation from local state
+                        setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+                        
+                        // If this was the current conversation, clear it
+                        if (currentConversationId === conversationId) {
+                            setCurrentConversationId(null);
+                        }
+                    } else {
+                        console.error('Failed to delete conversation');
+                    }
+                } catch (error) {
+                    console.error('Error deleting conversation:', error);
+                }
+            };
+
+            const renameConversation = async (conversationId, newTitle) => {
+                if (!conversationId || !newTitle.trim()) return;
+                
+                try {
+                    let response;
+                    if (window.sessionManager) {
+                        response = await window.sessionManager.authenticatedRequest(`/conversations/${conversationId}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ title: newTitle.trim() })
+                        });
+                    } else {
+                        const token = localStorage.getItem('access_token');
+                        response = await fetch(`/conversations/${conversationId}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ title: newTitle.trim() })
+                        });
+                    }
+
+                    if (response.ok) {
+                        // Update conversation title in local state
+                        setConversations(prev => prev.map(conv => 
+                            conv.id === conversationId 
+                                ? { ...conv, title: newTitle.trim() }
+                                : conv
+                        ));
+                        setShowRenameModal(false);
+                        setRenameValue('');
+                        setRenameConversationId(null);
+                    } else {
+                        console.error('Failed to rename conversation');
+                    }
+                } catch (error) {
+                    console.error('Error renaming conversation:', error);
+                }
+            };
+
+            const hasMessages = messages.length > 0 || isLoading;
+            
+            // Debug logging
+            console.log('hasMessages:', hasMessages, 'messages.length:', messages.length, 'isLoading:', isLoading);
 
             // Show loading screen while checking authentication
             if (authLoading) {
@@ -1620,10 +1899,14 @@
                         formatTimestamp={formatTimestamp}
                         isDarkMode={isDarkMode}
                         toggleDarkMode={toggleDarkMode}
+                        setRenameConversationId={setRenameConversationId}
+                        setRenameValue={setRenameValue}
+                        setShowRenameModal={setShowRenameModal}
+                        deleteConversation={deleteConversation}
                     />
 
                     {/* Main Chat Area */}
-                    <div className="flex-1 flex flex-col lg:ml-0 main-chat-area">
+                    <div className="flex-1 flex flex-col lg:ml-0 main-chat-area" style={{ overflow: 'visible' }}>
                         {/* Header */}
                         <div className="px-3 sm:px-4 py-2 sm:py-3 relative mobile-header" style={{ zIndex: 9998, backgroundColor: 'var(--bg-primary)' }}>
                             <div className="flex items-center justify-between">
@@ -1669,29 +1952,78 @@
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    {/* User Info */}
-                                    <div className="hidden sm:block text-right">
-                                        <p className="text-sm font-medium text-gray-800">
-                                            {user?.display_name || user?.email}
-                                        </p>
-                                        <p className="text-xs text-gray-400">Logged in</p>
+                                    {/* New Conversation Button */}
+                                    <button
+                                        onClick={newConversation}
+                                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                        title="Start New Conversation"
+                                    >
+                                        <i className="fas fa-plus"></i>
+                                    </button>
+                                    
+                                    {/* Burger Menu */}
+                                    <div className="relative header-menu-container">
+                                        <button
+                                            onClick={() => setShowHeaderMenu(!showHeaderMenu)}
+                                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                            title="Menu"
+                                        >
+                                            {/* Vertical dots on mobile, horizontal dots on desktop */}
+                                            <i className="fas fa-ellipsis-v sm:hidden"></i>
+                                            <i className="fas fa-ellipsis-h hidden sm:inline"></i>
+                                        </button>
+                                        
+                                        {/* Header Menu Dropdown */}
+                                        {showHeaderMenu && (
+                                            <div className="absolute right-0 top-full mt-2 mr-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-50">
+                                                <div className="py-1">
+                                                    {/* Dark Mode Toggle */}
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowHeaderMenu(false);
+                                                            toggleDarkMode();
+                                                        }}
+                                                        className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center"
+                                                        style={{ color: isDarkMode ? 'white' : '#374151' }}
+                                                    >
+                                                        <i className={`fas ${isDarkMode ? 'fa-sun' : 'fa-moon'} mr-2`} style={{ color: isDarkMode ? 'white' : '#374151' }}></i>
+                                                        {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+                                                    </button>
+                                                    
+                                                    {/* Rename Conversation */}
+                                                    {currentConversationId && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setShowHeaderMenu(false);
+                                                                setShowRenameModal(true);
+                                                            }}
+                                                            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center"
+                                                            style={{ color: isDarkMode ? 'white' : '#374151' }}
+                                                        >
+                                                            <i className="fas fa-pen mr-2" style={{ color: isDarkMode ? 'white' : '#374151' }}></i>
+                                                            Rename Conversation
+                                                        </button>
+                                                    )}
+                                                    
+                                                    {/* Delete Conversation */}
+                                                    {currentConversationId && currentConversation && currentConversation.title !== 'New Conversation' && currentConversation.messages && currentConversation.messages.length > 0 && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setShowHeaderMenu(false);
+                                                                deleteConversation(currentConversationId);
+                                                            }}
+                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center"
+                                                            style={{ color: '#ff8583' }}
+                                                        >
+                                                            <i className="fas fa-trash mr-2" style={{ color: '#ff8583' }}></i>
+                                                            Delete Conversation
+                                                        </button>
+                                                    )}
+                                                    
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    {/* Dark Mode Toggle */}
-                                    <button
-                                        onClick={toggleDarkMode}
-                                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                                        title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                                    >
-                                        <i className={`fas ${isDarkMode ? 'fa-sun' : 'fa-moon'}`}></i>
-                                    </button>
-                                    {/* Logout Button */}
-                                    <button
-                                        onClick={logout}
-                                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                                        title="Logout"
-                                    >
-                                        <i className="fas fa-sign-out-alt"></i>
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1732,6 +2064,48 @@
                             <ChatInput onSendMessage={sendMessage} isLoading={isLoading} isCentered={true} hasUserInteracted={hasUserInteracted} />
                         )}
                     </div>
+                    
+                    {/* Rename Modal */}
+                    {showRenameModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                                    Rename Conversation
+                                </h3>
+                                <input
+                                    type="text"
+                                    value={renameValue}
+                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    placeholder="Enter new conversation title"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                    autoFocus
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter') {
+                                            renameConversation(renameConversationId || currentConversationId, renameValue);
+                                        }
+                                    }}
+                                />
+                                <div className="flex justify-end space-x-2 mt-4">
+                                    <button
+                                        onClick={() => {
+                                            setShowRenameModal(false);
+                                            setRenameValue('');
+                                        }}
+                                        className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => renameConversation(renameConversationId || currentConversationId, renameValue)}
+                                        disabled={!renameValue.trim()}
+                                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Rename
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };

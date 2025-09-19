@@ -1,24 +1,3 @@
-# Environment variables
-.env
-.env.local
-.env.production
-.env.development
-.env.test
-
-# Firebase credentials and configuration
-firebase-credentials/
-config/firebase-credentials/
-*.json
-!package.json
-!tsconfig.json
-!firebase.json
-!firestore.rules
-!storage.rules
-
-# Google Cloud credentials
-gcloud-service-account.json
-service-account-key.json
-
 # Python
 __pycache__/
 *.py[cod]
@@ -40,123 +19,25 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
-venv/
+.env
+.venv
 env/
+venv/
 ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Temporary files
-*.tmp
-*.temp
-
-# Data files and directories
-data/
-data_processing/output/
-data_processing/save/
-*.parquet
-*.csv
-*.json
-*.pdf
-*.docx
-# Exclude specific txt files but keep requirements files
-*.txt
-!requirements*.txt
-
-# Configuration files (keep structure, exclude sensitive data)
-config/firebase-credentials/
-config/*.json
-!config/settings.py
-!config/__init__.py
-
-# Firebase credentials
-firebase-credentials/
-*.json
-!package.json
-!tsconfig.json
-
-# Large files and datasets
-*.zip
-*.tar.gz
-*.rar
-*.7z
-
-# Jupyter notebook checkpoints
-.ipynb_checkpoints/
-
-# Model files
-*.pkl
-*.joblib
-*.h5
-*.model
-
-# Cache directories
-.cache/
-.pytest_cache/
-
-# Local development files
-setup_local.py
-test_firestore.py
-test_*.py
-*_test.py
-debug_*.py
-local_*.py
-
-# Development scripts and utilities
-dev_scripts/
-scripts/local/
-tools/dev/
-
-# Deployment artifacts
-deploy.sh
-deploy_*.sh
-deployment/
-.dockerignore
-docker-compose.override.yml
-docker-compose.local.yml
-
-# Cloud Run and deployment
-!gcloudignore
-cloudbuild.yaml
-cloudbuild_*.yaml
-app.yaml
-app_*.yaml
-
-# Local database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Local logs and monitoring
-logs/
-*.log
-monitoring/
-metrics/
-
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.project
-.settings/
-.classpath
-
-# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -164,96 +45,34 @@ metrics/
 .Trashes
 ehthumbs.db
 Thumbs.db
-Desktop.ini
 
-# Temporary and backup files
+# Logs
+*.log
+logs/
+
+# Temporary files
 *.tmp
 *.temp
-*.bak
-*.backup
-*~
+temp/
+tmp/
 
-# Node.js (if any frontend build tools are used)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Firebase credentials (keep README but not actual credentials)
+config/firebase-credentials/*.json
+!config/firebase-credentials/README.md
 
-# Build outputs
-build/
-dist/
-out/
-target/
+# Data processing outputs (keep structure but not large files)
+data_processing/output/*.parquet
+!data_processing/output/.gitkeep
 
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-.hypothesis/
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-*/.ipynb_checkpoints/*
+# Test files
+test_*.py
+*_test.py
+tests/
 
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# PEP 582
-__pypackages__/
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Local configuration overrides
-config/local/
-config/development/
-config/production/
-config/*.local.*
-config/*.dev.*
-config/*.prod.*
-
-# Secrets and sensitive files
-secrets/
-.secrets/
-*.pem
-*.key
-*.crt
-*.p12
-*.pfx
-
-# Local data and test data
-test_data/
-local_data/
-sample_data/
-mock_data/
-
-# Performance and profiling
-*.prof
-*.profile
+# Development scripts
+fix_*.py
+previous_*.py
+explore_*.py
