@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/522085639370828902/d031f02b2c614576b469966aa1cd6f0f/artifacts
+end_time: 1758295643187
+entry_point_name: ''
+experiment_id: '522085639370828902'
+lifecycle_stage: active
+run_id: d031f02b2c614576b469966aa1cd6f0f
+run_name: exultant-vole-464
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758295640836
+status: 3
+tags: []
+user_id: christophe.anglade

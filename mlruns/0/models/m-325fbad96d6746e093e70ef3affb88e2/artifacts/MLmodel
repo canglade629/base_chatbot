@@ -1,0 +1,47 @@
+artifact_path: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/0/models/m-325fbad96d6746e093e70ef3affb88e2/artifacts
+env_vars:
+- DATABRICKS_HOST
+- DATABRICKS_TOKEN
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.1
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.11.13
+    streamable: false
+is_signature_from_type_hint: false
+mlflow_version: 3.4.0
+model_id: m-325fbad96d6746e093e70ef3affb88e2
+model_size_bytes: 82717
+model_uuid: m-325fbad96d6746e093e70ef3affb88e2
+prompts: null
+resources:
+  api_version: '1'
+  databricks:
+    serving_endpoint:
+    - name: jgmt
+    vector_search_index:
+    - name: icc_chatbot.search_model.past_judgement
+    - name: icc_chatbot.search_model.geneva_documentation
+run_id: 9f72dacc9b744273a6b08a9ca06c2a55
+saved_input_example_info:
+  artifact_path: input_example.json
+  serving_input_path: serving_input_example.json
+  type: json_object
+signature:
+  inputs: '[{"type": "string", "name": "question", "required": true}, {"type": "long",
+    "name": "top_k", "required": true}, {"type": "string", "name": "conversation_id",
+    "required": true}]'
+  outputs: '[{"type": "string", "name": "analysis", "required": true}, {"type": "array",
+    "items": {"type": "string"}, "name": "key_findings", "required": true}, {"type":
+    "array", "items": {"type": "string"}, "name": "citations", "required": true},
+    {"type": "double", "name": "confidence_score", "required": true}, {"type": "long",
+    "name": "sources_used", "required": true}, {"type": "double", "name": "processing_time",
+    "required": true}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2025-09-19 16:53:51.852678'

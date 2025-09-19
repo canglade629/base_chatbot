@@ -1,0 +1,29 @@
+artifact_path: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/522085639370828902/models/m-ecf07eb61b95465aa641634c979d72c6/artifacts
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.1
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.11.13
+    streamable: false
+is_signature_from_type_hint: false
+mlflow_version: 3.4.0
+model_id: m-ecf07eb61b95465aa641634c979d72c6
+model_size_bytes: 1772
+model_uuid: m-ecf07eb61b95465aa641634c979d72c6
+prompts: null
+run_id: d031f02b2c614576b469966aa1cd6f0f
+saved_input_example_info:
+  artifact_path: input_example.json
+  serving_input_path: serving_input_example.json
+  type: json_object
+signature:
+  inputs: '[{"type": "string", "name": "text", "required": true}]'
+  outputs: '[{"type": "string", "name": "prediction", "required": true}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2025-09-19 15:27:20.865718'

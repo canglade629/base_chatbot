@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/0/9f72dacc9b744273a6b08a9ca06c2a55/artifacts
+end_time: 1758300845043
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 9f72dacc9b744273a6b08a9ca06c2a55
+run_name: casual-dove-473
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758300831822
+status: 3
+tags: []
+user_id: christophe.anglade

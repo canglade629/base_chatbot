@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/0/a26389657b7e459ea5fa6e6a510d4d08/artifacts
+end_time: 1758295287261
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: a26389657b7e459ea5fa6e6a510d4d08
+run_name: bouncy-shrike-646
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758295273523
+status: 3
+tags: []
+user_id: christophe.anglade

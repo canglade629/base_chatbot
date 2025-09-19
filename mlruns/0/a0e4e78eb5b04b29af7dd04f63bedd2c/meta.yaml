@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/0/a0e4e78eb5b04b29af7dd04f63bedd2c/artifacts
+end_time: 1758301189849
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: a0e4e78eb5b04b29af7dd04f63bedd2c
+run_name: dapper-sponge-245
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758301177190
+status: 3
+tags: []
+user_id: christophe.anglade

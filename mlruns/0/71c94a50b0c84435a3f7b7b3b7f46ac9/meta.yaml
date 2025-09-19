@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/0/71c94a50b0c84435a3f7b7b3b7f46ac9/artifacts
+end_time: 1758295300711
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 71c94a50b0c84435a3f7b7b3b7f46ac9
+run_name: rebellious-sponge-28
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758295287557
+status: 3
+tags: []
+user_id: christophe.anglade

@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/0/295572d035ea4884a42b00e3e8715e4f/artifacts
+end_time: 1758300830895
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 295572d035ea4884a42b00e3e8715e4f
+run_name: glamorous-goat-917
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758300815530
+status: 3
+tags: []
+user_id: christophe.anglade

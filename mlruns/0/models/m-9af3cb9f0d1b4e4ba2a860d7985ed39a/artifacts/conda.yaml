@@ -1,0 +1,15 @@
+channels:
+- conda-forge
+dependencies:
+- python=3.11
+- pip
+- pip:
+  - databricks-vectorsearch>=0.1.0
+  - databricks-langchain>=0.1.0
+  - mlflow>=3.1.1
+  - pydantic>=2.0.0
+  - databricks-agents>=0.1.0
+  - unitycatalog-langchain[databricks]>=0.1.0
+  - langchain>=0.1.0
+  - numpy>=1.24.0
+  - pandas>=2.0.0

@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/0/7389894c6af1477a85cb480e04e5810e/artifacts
+end_time: 1758295159739
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 7389894c6af1477a85cb480e04e5810e
+run_name: luxuriant-vole-250
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758295148073
+status: 3
+tags: []
+user_id: christophe.anglade

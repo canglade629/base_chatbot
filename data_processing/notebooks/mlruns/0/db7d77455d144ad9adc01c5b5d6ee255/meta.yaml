@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/christophe.anglade/Documents/icc_chatbot/data_processing/notebooks/mlruns/0/db7d77455d144ad9adc01c5b5d6ee255/artifacts
+end_time: 1758299367078
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: db7d77455d144ad9adc01c5b5d6ee255
+run_name: stately-bat-842
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758299365958
+status: 3
+tags: []
+user_id: christophe.anglade

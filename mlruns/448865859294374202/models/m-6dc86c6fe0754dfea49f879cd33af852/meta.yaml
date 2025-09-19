@@ -1,0 +1,10 @@
+artifact_location: file:///Users/christophe.anglade/Documents/icc_chatbot/mlruns/448865859294374202/models/m-6dc86c6fe0754dfea49f879cd33af852/artifacts
+creation_timestamp: 1758295693576
+experiment_id: '448865859294374202'
+last_updated_timestamp: 1758295694912
+model_id: m-6dc86c6fe0754dfea49f879cd33af852
+model_type: null
+name: enhanced_icc_rag
+source_run_id: aa8c59da18dc4f06a59b2e786a0dacf7
+status: 2
+status_message: null
