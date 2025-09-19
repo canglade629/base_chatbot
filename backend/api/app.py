@@ -50,6 +50,7 @@ load_dotenv()
 
 # Databricks endpoint configuration
 DATABRICKS_HOST = os.getenv("DATABRICKS_HOST", "https://dbc-0619d7f5-0bda.cloud.databricks.com")
+# Use the correct model serving endpoint based on the production code
 DATABRICKS_ENDPOINT = f"{DATABRICKS_HOST}/serving-endpoints/icc_chatbot_endpoint/invocations"
 DATABRICKS_TOKEN = os.getenv("DATABRICKS_TOKEN")
 
@@ -58,6 +59,7 @@ if not DATABRICKS_TOKEN:
     logger.warning("Chat functionality will be limited")
 else:
     logger.info(f"✅ Databricks configured: {DATABRICKS_HOST}")
+    logger.info(f"✅ Model serving endpoint: {DATABRICKS_ENDPOINT}")
 
 app = FastAPI(title="ICC Legal Research Assistant")
 
@@ -204,7 +206,8 @@ async def call_databricks_endpoint(query: str, conversation_id: str = None) -> D
     if conversation_id is None:
         conversation_id = f"conv_{random.randint(100000, 999999)}"
     
-    # Prepare request payload for Databricks format
+    # Prepare request payload for Databricks model serving endpoint
+    # Based on the production model signature from ICC_Enhanced_RAG_Production.py
     payload = {
         "inputs": {
             "question": query,
@@ -694,42 +697,50 @@ async def chat_endpoint(
         # Call the real Databricks endpoint
         databricks_response = await call_databricks_endpoint(chat_message.message)
         
-        # Extract the response from the Databricks format
-        # The response comes wrapped in a "predictions" array
+        # Extract the response from the Databricks model serving endpoint
+        # The response comes wrapped in a "predictions" object
         response_data = {}
         if isinstance(databricks_response, dict) and "predictions" in databricks_response:
             predictions = databricks_response["predictions"]
-            if isinstance(predictions, list) and len(predictions) > 0:
+            if isinstance(predictions, dict):
+                # Predictions is a dictionary (not a list)
+                response_data = predictions
+            elif isinstance(predictions, list) and len(predictions) > 0:
                 response_data = predictions[0]
         elif isinstance(databricks_response, list) and len(databricks_response) > 0:
             response_data = databricks_response[0]
+        elif isinstance(databricks_response, dict):
+            # Direct response format
+            response_data = databricks_response
         
         # Format the response with enhanced analysis and sources
         if response_data:
-            # Enhanced header with metadata
-            question = response_data.get('question', 'Legal Analysis')
-            routing_decision = response_data.get('routing_decision', 'unknown')
-            confidence_score = response_data.get('confidence_score', 0)
+            # Extract fields based on the production model output format
+            question = response_data.get('question', query)
+            analysis = response_data.get('analysis', 'No analysis available')
+            key_findings = response_data.get('key_findings', [])
+            citations = response_data.get('citations', [])
+            confidence_score = response_data.get('confidence_score', 0.0)
             sources_used = response_data.get('sources_used', 0)
+            processing_time = response_data.get('processing_time', 0.0)
             
             # Confidence indicator
-            confidence_level = "High" if confidence_score >= 0.8 else "Medium" if confidence_score >= 0.6 else "Low"
-            confidence_emoji = "🟢" if confidence_score >= 0.8 else "🟡" if confidence_score >= 0.6 else "🔴"
+            confidence_level = "High" if confidence_score >= 0.8 else "Medium" if confidence_score >= 0.6 else "Low"                                                                                                    
+            confidence_emoji = "🟢" if confidence_score >= 0.8 else "🟡" if confidence_score >= 0.6 else "🔴"                                                                                                           
             
             formatted_response = f"# ⚖️ Legal Analysis\n\n"
             formatted_response += f"**Research Question:** {question}\n\n"
-            formatted_response += f"**Analysis Quality:** {confidence_emoji} {confidence_level} Confidence ({confidence_score:.2f})\n"
+            formatted_response += f"**Analysis Quality:** {confidence_emoji} {confidence_level} Confidence ({confidence_score:.2f})\n"                                                                                  
             formatted_response += f"**Sources Analyzed:** {sources_used} documents\n"
-            formatted_response += f"**Search Strategy:** {routing_decision.title()} priority\n\n"
+            formatted_response += f"**Processing Time:** {processing_time:.2f}s\n\n"
             
             # Main analysis with better formatting
-            analysis = response_data.get('analysis', 'No analysis available')
             formatted_response += f"## 📋 Analysis\n\n{analysis}\n\n"
             
             # Enhanced key findings section
-            if response_data.get('key_findings'):
+            if key_findings:
                 formatted_response += f"## 🔍 Key Findings\n\n"
-                for i, finding in enumerate(response_data.get('key_findings', []), 1):
+                for i, finding in enumerate(key_findings, 1):
                     # Clean up the finding text
                     clean_finding = finding.replace('•', '').replace('*', '').strip()
                     if clean_finding.startswith('📋'):
@@ -739,41 +750,15 @@ async def chat_endpoint(
                 formatted_response += "\n"
             
             # Enhanced citations section
-            if response_data.get('citations'):
+            if citations:
                 formatted_response += f"## 📚 Legal Citations\n\n"
-                for i, citation in enumerate(response_data.get('citations', []), 1):
+                for i, citation in enumerate(citations, 1):
                     formatted_response += f"{i}. {citation}\n"
-                formatted_response += "\n"
-            
-            # Enhanced source details section
-            if response_data.get('sources'):
-                formatted_response += f"## 📖 Source Details\n\n"
-                formatted_response += f"**Total Sources:** {sources_used}\n"
-                formatted_response += f"**Processing Time:** {response_data.get('processing_time_seconds', 0):.2f}s\n\n"
-                
-                formatted_response += "**Top Sources:**\n"
-                for i, source in enumerate(response_data.get('sources', [])[:8], 1):  # Show first 8 sources
-                    source_name = source.get('source', 'Unknown')
-                    source_type = source.get('source_type', 'unknown').title()
-                    page_num = source.get('page_number', 'N/A')
-                    relevance = source.get('relevance_score', 0)
-                    section = source.get('section', '')
-                    
-                    # Format source with metadata
-                    source_line = f"{i}. **{source_name}** ({source_type})"
-                    if page_num != 'N/A':
-                        source_line += f" - Page {page_num}"
-                    if section:
-                        source_line += f" - {section}"
-                    source_line += f" - Relevance: {relevance:.2f}"
-                    
-                    formatted_response += f"{source_line}\n"
-                
                 formatted_response += "\n"
             
             # Add footer with disclaimer
             formatted_response += "---\n"
-            formatted_response += "*This analysis is based on retrieved legal documents and should be verified against primary sources.*\n"
+            formatted_response += "*This analysis is based on retrieved legal documents and should be verified against primary sources.*\n"                                                                             
         else:
             # Fallback to canned response if format is unexpected
             formatted_response = random.choice(CANNED_RESPONSES)
@@ -786,7 +771,7 @@ async def chat_endpoint(
             confidence_score=response_data.get('confidence_score'),
             key_findings=response_data.get('key_findings'),
             citations=response_data.get('citations'),
-            processing_time_seconds=response_data.get('processing_time_seconds'),
+            processing_time_seconds=response_data.get('processing_time'),
             sources=response_data.get('sources')
         )
         
