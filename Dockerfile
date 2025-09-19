@@ -35,7 +35,6 @@ WORKDIR /app
 COPY main.py .
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
-COPY setup_local.py .
 
 # Create necessary directories
 RUN mkdir -p config/firebase-credentials

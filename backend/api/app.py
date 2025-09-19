@@ -643,31 +643,76 @@ async def chat_endpoint(
         elif isinstance(databricks_response, list) and len(databricks_response) > 0:
             response_data = databricks_response[0]
         
-        # Format the response with analysis and sources
+        # Format the response with enhanced analysis and sources
         if response_data:
-            formatted_response = f"# {response_data.get('question', 'Legal Analysis')}\n\n"
-            formatted_response += f"**Analysis:**\n{response_data.get('analysis', 'No analysis available')}\n\n"
+            # Enhanced header with metadata
+            question = response_data.get('question', 'Legal Analysis')
+            routing_decision = response_data.get('routing_decision', 'unknown')
+            confidence_score = response_data.get('confidence_score', 0)
+            sources_used = response_data.get('sources_used', 0)
             
+            # Confidence indicator
+            confidence_level = "High" if confidence_score >= 0.8 else "Medium" if confidence_score >= 0.6 else "Low"
+            confidence_emoji = "🟢" if confidence_score >= 0.8 else "🟡" if confidence_score >= 0.6 else "🔴"
+            
+            formatted_response = f"# ⚖️ Legal Analysis\n\n"
+            formatted_response += f"**Research Question:** {question}\n\n"
+            formatted_response += f"**Analysis Quality:** {confidence_emoji} {confidence_level} Confidence ({confidence_score:.2f})\n"
+            formatted_response += f"**Sources Analyzed:** {sources_used} documents\n"
+            formatted_response += f"**Search Strategy:** {routing_decision.title()} priority\n\n"
+            
+            # Main analysis with better formatting
+            analysis = response_data.get('analysis', 'No analysis available')
+            formatted_response += f"## 📋 Analysis\n\n{analysis}\n\n"
+            
+            # Enhanced key findings section
             if response_data.get('key_findings'):
-                formatted_response += f"**Key Findings:**\n"
-                for finding in response_data.get('key_findings', []):
-                    formatted_response += f"• {finding}\n"
+                formatted_response += f"## 🔍 Key Findings\n\n"
+                for i, finding in enumerate(response_data.get('key_findings', []), 1):
+                    # Clean up the finding text
+                    clean_finding = finding.replace('•', '').replace('*', '').strip()
+                    if clean_finding.startswith('📋'):
+                        formatted_response += f"{clean_finding}\n"
+                    else:
+                        formatted_response += f"{i}. {clean_finding}\n"
                 formatted_response += "\n"
             
+            # Enhanced citations section
             if response_data.get('citations'):
-                formatted_response += f"**Citations:**\n"
-                for citation in response_data.get('citations', []):
-                    formatted_response += f"• {citation}\n"
+                formatted_response += f"## 📚 Legal Citations\n\n"
+                for i, citation in enumerate(response_data.get('citations', []), 1):
+                    formatted_response += f"{i}. {citation}\n"
                 formatted_response += "\n"
             
+            # Enhanced source details section
             if response_data.get('sources'):
-                formatted_response += f"**Sources Used:** {response_data.get('sources_used', 0)}\n"
-                formatted_response += f"**Confidence Score:** {response_data.get('confidence_score', 0):.2f}\n"
+                formatted_response += f"## 📖 Source Details\n\n"
+                formatted_response += f"**Total Sources:** {sources_used}\n"
                 formatted_response += f"**Processing Time:** {response_data.get('processing_time_seconds', 0):.2f}s\n\n"
                 
-                formatted_response += "**Source Details:**\n"
-                for source in response_data.get('sources', [])[:5]:  # Show first 5 sources
-                    formatted_response += f"• {source.get('source', 'Unknown')} (Page {source.get('page_number', 'N/A')}) - Relevance: {source.get('relevance_score', 0):.2f}\n"
+                formatted_response += "**Top Sources:**\n"
+                for i, source in enumerate(response_data.get('sources', [])[:8], 1):  # Show first 8 sources
+                    source_name = source.get('source', 'Unknown')
+                    source_type = source.get('source_type', 'unknown').title()
+                    page_num = source.get('page_number', 'N/A')
+                    relevance = source.get('relevance_score', 0)
+                    section = source.get('section', '')
+                    
+                    # Format source with metadata
+                    source_line = f"{i}. **{source_name}** ({source_type})"
+                    if page_num != 'N/A':
+                        source_line += f" - Page {page_num}"
+                    if section:
+                        source_line += f" - {section}"
+                    source_line += f" - Relevance: {relevance:.2f}"
+                    
+                    formatted_response += f"{source_line}\n"
+                
+                formatted_response += "\n"
+            
+            # Add footer with disclaimer
+            formatted_response += "---\n"
+            formatted_response += "*This analysis is based on retrieved legal documents and should be verified against primary sources.*\n"
         else:
             # Fallback to canned response if format is unexpected
             formatted_response = random.choice(CANNED_RESPONSES)
