@@ -2,7 +2,29 @@
 
 ## 🚨 Common Issues and Solutions
 
-### 1. Container Failed to Start and Listen on Port 8080
+### 1. App Not Opening / Frontend Not Loading
+
+**Symptoms:**
+- API responds with JSON: `{"message":"ICC Legal Research Assistant API","status":"running","version":"1.0.0"}`
+- Frontend interface not visible
+- Only API endpoints accessible
+
+**Root Cause:**
+- Missing frontend route configuration
+- Static files not properly mounted
+
+**Solution:**
+- The app now includes proper frontend routing
+- Root `/` redirects to `/app` which serves the HTML interface
+- Static files are mounted at `/static` and `/js`
+
+**Access Points:**
+- Main App: `http://your-domain.com/` (redirects to `/app`)
+- Direct App: `http://your-domain.com/app`
+- Health Check: `http://your-domain.com/health`
+- API Info: `http://your-domain.com/api/info`
+
+### 2. Container Failed to Start and Listen on Port 8080
 
 **Symptoms:**
 - Error: "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout"

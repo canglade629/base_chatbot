@@ -58,15 +58,6 @@ if not DATABRICKS_TOKEN:
 
 app = FastAPI(title="ICC Legal Research Assistant")
 
-# Add a simple root endpoint
-@app.get("/")
-async def root():
-    return {
-        "message": "ICC Legal Research Assistant API", 
-        "status": "running",
-        "version": "1.0.0"
-    }
-
 # Add health check endpoint
 @app.get("/health")
 async def health_check():
@@ -74,6 +65,15 @@ async def health_check():
         "status": "healthy",
         "message": "Service is running",
         "timestamp": "2024-01-01T00:00:00Z"
+    }
+
+# Add API info endpoint
+@app.get("/api/info")
+async def api_info():
+    return {
+        "message": "ICC Legal Research Assistant API", 
+        "status": "running",
+        "version": "1.0.0"
     }
 
 # Add CORS middleware for development
@@ -93,6 +93,20 @@ app.mount("/static", StaticFiles(directory=frontend_static_path), name="static")
 # Mount JS files from frontend/js directory
 frontend_js_path = os.path.join(os.path.dirname(__file__), "../../frontend/js")
 app.mount("/js", StaticFiles(directory=frontend_js_path), name="js")
+
+# Serve the main HTML file
+@app.get("/app")
+async def serve_app():
+    """Serve the main application HTML file"""
+    frontend_path = os.path.join(os.path.dirname(__file__), "../../frontend/index.html")
+    return FileResponse(frontend_path)
+
+# Redirect root to app
+@app.get("/", include_in_schema=False)
+async def redirect_to_app():
+    """Redirect root to the app"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/app")
 
 # Security
 security = HTTPBearer()
