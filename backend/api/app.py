@@ -771,6 +771,9 @@ async def chat_endpoint(
         else:
             # Fallback to canned response if format is unexpected
             formatted_response = random.choice(CANNED_RESPONSES)
+            # Add disclaimer to fallback responses as well
+            formatted_response += "\n\n---\n"
+            formatted_response += "*This analysis is based on retrieved legal documents and should be verified against primary sources.*"
         
         return EnhancedChatResponse(
             response=formatted_response,
@@ -791,6 +794,9 @@ async def chat_endpoint(
         # Fallback to canned response on any other error
         print(f"Error calling Databricks endpoint: {str(e)}")
         response = random.choice(CANNED_RESPONSES)
+        # Add disclaimer to error fallback responses as well
+        response += "\n\n---\n"
+        response += "*This analysis is based on retrieved legal documents and should be verified against primary sources.*"
         return EnhancedChatResponse(response=response)
 
 if __name__ == "__main__":

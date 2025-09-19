@@ -366,6 +366,16 @@
                     });
                     
                     if (!response.ok) {
+                        if (response.status === 504) {
+                            // Timeout error - AI is starting up
+                            const timeoutMessage = { 
+                                role: 'assistant', 
+                                content: '⏳ The AI is starting up. Please wait about 30 seconds and try again.',
+                                style: 'color: rgb(255, 133, 131);'
+                            };
+                            setMessages([...newMessages, timeoutMessage]);
+                            return;
+                        }
                         throw new Error('Failed to send message');
                     }
                     
@@ -384,7 +394,15 @@
                     
                 } catch (error) {
                     console.error('Error sending message:', error);
-                    const errorMessage = { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' };
+                    const errorMessage = { 
+                        role: 'assistant', 
+                        content: (error.message.includes('timeout') || error.message.includes('Timeout') || error.name === 'TimeoutError')
+                            ? '⏳ The AI is starting up. Please wait about 30 seconds and try again.'
+                            : 'Sorry, I encountered an error. Please try again.',
+                        style: (error.message.includes('timeout') || error.message.includes('Timeout') || error.name === 'TimeoutError')
+                            ? 'color: rgb(255, 133, 131);'
+                            : undefined
+                    };
                     setMessages([...newMessages, errorMessage]);
                 } finally {
                     setIsLoading(false);
@@ -515,6 +533,7 @@
                                             {message.role === 'assistant' ? (
                                                 <div 
                                                     className="markdown-content"
+                                                    style={message.style ? { color: message.style.split(':')[1]?.trim() } : undefined}
                                                     dangerouslySetInnerHTML={{
                                                         __html: marked.parse(message.content)
                                                     }}

@@ -1128,7 +1128,7 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        const ChatMessage = ({ message, isUser, isLoading = false }) => {
+        const ChatMessage = ({ message, isUser, isLoading = false, style }) => {
             const [copySuccess, setCopySuccess] = useState(false);
             
             const copyToClipboard = async (text) => {
@@ -1168,6 +1168,11 @@
                     );
                 }
                 
+                // Extract disclaimer from text if it exists
+                const disclaimerRegex = /---\s*\n\*This analysis is based on retrieved legal documents and should be verified against primary sources\.\*/;
+                const hasDisclaimer = disclaimerRegex.test(text);
+                const textWithoutDisclaimer = text.replace(disclaimerRegex, '').trim();
+                
                 try {
                     // Configure marked for legal document formatting
                     marked.setOptions({
@@ -1203,14 +1208,22 @@
                     
                     marked.use({ renderer });
                     
-                    const html = marked.parse(text);
+                    const html = marked.parse(textWithoutDisclaimer);
                     return (
                         <div className="flex justify-start mb-6 sm:mb-8">
                             <div className="max-w-xs sm:max-w-2xl lg:max-w-3xl w-full">
                                 <div 
                                     className="markdown-content text-sm leading-tight"
+                                    style={style ? { color: style.split(':')[1]?.trim() } : undefined}
                                     dangerouslySetInnerHTML={{ __html: html }}
                                 />
+                                {hasDisclaimer && (
+                                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic text-center">
+                                            This analysis is based on retrieved legal documents and should be verified against primary sources.
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="flex justify-end mt-3">
                                     <button
                                         onClick={() => copyToClipboard(text)}
@@ -1228,7 +1241,14 @@
                     return (
                         <div className="flex justify-start mb-6 sm:mb-8">
                             <div className="max-w-xs sm:max-w-2xl lg:max-w-3xl w-full">
-                                <p className="text-sm leading-tight break-words">{text}</p>
+                                <p className="text-sm leading-tight break-words">{textWithoutDisclaimer}</p>
+                                {hasDisclaimer && (
+                                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic text-center">
+                                            This analysis is based on retrieved legal documents and should be verified against primary sources.
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="flex justify-end mt-3">
                                     <button
                                         onClick={() => copyToClipboard(text)}
@@ -1285,11 +1305,25 @@
             };
 
             const handlePaste = (e) => {
-                // Allow default paste behavior
-                // This ensures paste functionality works properly
                 console.log('Paste event triggered');
-                e.stopPropagation();
-                // Let the default paste behavior handle the rest
+                console.log('Current message state before paste:', message);
+                console.log('Textarea value before paste:', textareaRef.current?.value);
+                
+                // Get the pasted text from clipboard
+                const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+                console.log('Pasted text:', pastedText);
+                
+                if (pastedText) {
+                    // Manually update the message state with the pasted text
+                    const newMessage = message + pastedText;
+                    console.log('New message after paste:', newMessage);
+                    setMessage(newMessage);
+                    
+                    // Trigger scroll check
+                    setTimeout(() => {
+                        checkScroll();
+                    }, 10);
+                }
             };
 
             const checkScroll = () => {
@@ -2357,7 +2391,22 @@
                     }
 
                     if (!response.ok) {
-                        if (response.status === 401 || response.status === 403) {
+                        if (response.status === 504) {
+                            // Timeout error - AI is starting up
+                            const timeoutMessage = {
+                                id: Date.now() + 1,
+                                text: "⏳ The AI is starting up. Please wait about 30 seconds and try again.",
+                                isUser: false,
+                                style: "color: rgb(255, 133, 131);"
+                            };
+                            
+                            setConversations(prev => prev.map(conv => 
+                                conv.id === conversationId 
+                                    ? { ...conv, messages: [...conv.messages, timeoutMessage] }
+                                    : conv
+                            ));
+                            return;
+                        } else if (response.status === 401 || response.status === 403) {
                             // Token expired or not authenticated, try refresh
                             try {
                             await refreshToken();
@@ -2461,8 +2510,13 @@
                             ? "🔧 Service temporarily unavailable. Please try again in a moment."
                             : error.message.includes('Server error')
                             ? `⚠️ Server error: ${error.message}. Please try again.`
+                            : error.message.includes('timeout') || error.message.includes('Timeout') || error.name === 'TimeoutError'
+                            ? "⏳ The AI is starting up. Please wait about 30 seconds and try again."
                             : "❌ Sorry, I encountered an error. Please try again.",
-                        isUser: false
+                        isUser: false,
+                        style: (error.message.includes('timeout') || error.message.includes('Timeout') || error.name === 'TimeoutError') 
+                            ? "color: rgb(255, 133, 131);" 
+                            : undefined
                     };
                     
                     setConversations(prev => prev.map(conv => 
@@ -2769,6 +2823,7 @@
                                                 key={message.id}
                                                 message={message.text}
                                                 isUser={message.isUser}
+                                                style={message.style}
                                             />
                                         ))}
                                         {isLoading && (
