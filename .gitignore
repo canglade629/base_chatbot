@@ -62,6 +62,13 @@ config/firebase-credentials/*.json
 
 # Data processing outputs (keep structure but not large files)
 data_processing/output/*.parquet
+data_processing/output/*.parquet.intermediate
+data_processing/output/*.csv
+data_processing/output/*.json
+data_processing/output/*.pkl
+data_processing/output/*.joblib
+data_processing/output/*.h5
+data_processing/output/*.model
 !data_processing/output/.gitkeep
 
 # Jupyter Notebook checkpoints
@@ -76,3 +83,85 @@ tests/
 fix_*.py
 previous_*.py
 explore_*.py
+
+# Output files and generated content
+output/
+outputs/
+results/
+generated/
+build/
+dist/
+*.out
+*.output
+
+# Data files
+*.parquet
+*.csv
+*.json
+*.pkl
+*.joblib
+*.h5
+*.model
+*.bin
+*.dat
+*.db
+*.sqlite
+*.sqlite3
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+*.bz2
+*.xz
+
+# Media files
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.wma
+
+# Generated image files (keep source assets)
+# Note: Source SVG logo in frontend/static/ is kept
+generated_*.png
+generated_*.jpg
+generated_*.jpeg
+output_*.png
+output_*.jpg
+output_*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.ico
+*.webp
+
+# Generated document files (keep source data)
+# Note: Source PDFs in data/ directory are kept
+generated_*.pdf
+output_*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.odt
+*.ods
+*.odp
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.save
