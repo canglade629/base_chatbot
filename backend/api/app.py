@@ -23,17 +23,17 @@ logger = logging.getLogger(__name__)
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from services.firestore_auth import firestore_auth
-    logger.info("✅ Using Firestore-only authentication")
-    logger.info(f"🔧 Mock mode: {firestore_auth.use_mock}")
+    from services.postgres_auth_service import postgres_auth
+    logger.info("✅ Using PostgreSQL authentication")
+    logger.info(f"🔧 Mock mode: {postgres_auth.use_mock}")
 except Exception as e:
-    logger.error(f"❌ Failed to import firestore_auth: {e}")
+    logger.error(f"❌ Failed to import postgres_auth: {e}")
     # Create a mock auth object for fallback
     class MockAuth:
         use_mock = True
         def verify_token(self, token): return None
         def create_access_token(self, data): return "mock_token"
-    firestore_auth = MockAuth()
+    postgres_auth = MockAuth()
 
 try:
     from services.auth_service import auth_service
@@ -49,9 +49,9 @@ except Exception as e:
 load_dotenv()
 
 # Databricks endpoint configuration
-DATABRICKS_HOST = os.getenv("DATABRICKS_HOST", "https://dbc-0619d7f5-0bda.cloud.databricks.com")
+DATABRICKS_HOST = os.getenv("DATABRICKS_HOST", "https://fe-vm-vdm-serverless-nmmvdg.cloud.databricks.com")
 # Use the correct model serving endpoint based on the production code
-DATABRICKS_ENDPOINT = f"{DATABRICKS_HOST}/serving-endpoints/icc_chatbot_endpoint/invocations"
+DATABRICKS_ENDPOINT = f"{DATABRICKS_HOST}/serving-endpoints/databricks-gpt-oss-20b/invocations"
 DATABRICKS_TOKEN = os.getenv("DATABRICKS_TOKEN")
 
 if not DATABRICKS_TOKEN:
@@ -265,8 +265,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         if uid is None:
             raise credentials_exception
         
-        # Get user from Firestore
-        user = await firestore_auth.get_user_by_uid(uid)
+        # Get user from PostgreSQL
+        user = await postgres_auth.get_user_by_uid(uid)
         return user
     except Exception:
         raise credentials_exception
@@ -440,8 +440,8 @@ I'm excited to help you with **ICC 2.0**! Here's how we can work together:
 async def signup(user_data: UserSignup):
     """Register a new user"""
     try:
-        # Create user in Firestore
-        user = await firestore_auth.create_user(
+        # Create user in PostgreSQL
+        user = await postgres_auth.create_user(
             email=user_data.email,
             password=user_data.password,
             display_name=user_data.display_name
@@ -471,7 +471,7 @@ async def login(user_data: UserLogin):
     """Authenticate user and return tokens"""
     try:
         # Verify user credentials
-        user = await firestore_auth.verify_user(
+        user = await postgres_auth.verify_user(
             email=user_data.email,
             password=user_data.password
         )
@@ -507,7 +507,7 @@ async def refresh_token(request: RefreshTokenRequest):
             )
         
         uid = payload.get("sub")
-        user = await firestore_auth.get_user_by_uid(uid)
+        user = await postgres_auth.get_user_by_uid(uid)
         
         # Create new tokens
         access_token = auth_service.create_access_token(
@@ -540,7 +540,7 @@ async def update_profile(
 ):
     """Update user profile"""
     try:
-        updated_user = await firestore_auth.update_user_profile(
+        updated_user = await postgres_auth.update_user_profile(
             uid=current_user["uid"],
             display_name=display_name
         )
@@ -555,7 +555,7 @@ async def update_profile(
 async def delete_account(current_user: dict = Depends(get_current_user)):
     """Delete user account"""
     try:
-        await firestore_auth.delete_user(current_user["uid"])
+        await postgres_auth.delete_user(current_user["uid"])
         return {"message": "Account deleted successfully"}
     except Exception as e:
         raise HTTPException(
@@ -568,7 +568,7 @@ async def delete_account(current_user: dict = Depends(get_current_user)):
 async def get_conversations(current_user: dict = Depends(get_current_user)):
     """Get all conversations for the current user"""
     try:
-        conversations = await firestore_auth.get_user_conversations(current_user["uid"])
+        conversations = await postgres_auth.get_user_conversations(current_user["uid"])
         return conversations
     except Exception as e:
         raise HTTPException(
@@ -586,7 +586,7 @@ async def create_conversation(
 ):
     """Create a new conversation"""
     try:
-        conversation = await firestore_auth.create_conversation(current_user["uid"], conversation_data.title)
+        conversation = await postgres_auth.create_conversation(current_user["uid"], conversation_data.title)
         return conversation
     except Exception as e:
         raise HTTPException(
@@ -603,14 +603,14 @@ async def update_conversation(
     """Update a conversation"""
     try:
         # Verify conversation belongs to user
-        conversations = await firestore_auth.get_user_conversations(current_user["uid"])
+        conversations = await postgres_auth.get_user_conversations(current_user["uid"])
         if not any(conv["id"] == conversation_id for conv in conversations):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found"
             )
         
-        await firestore_auth.update_conversation(
+        await postgres_auth.update_conversation(
             conversation_id,
             title=update_data.title,
             messages=update_data.messages
@@ -632,14 +632,14 @@ async def delete_conversation(
     """Delete a conversation"""
     try:
         # Verify conversation belongs to user
-        conversations = await firestore_auth.get_user_conversations(current_user["uid"])
+        conversations = await postgres_auth.get_user_conversations(current_user["uid"])
         if not any(conv["id"] == conversation_id for conv in conversations):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found"
             )
         
-        await firestore_auth.delete_conversation(conversation_id)
+        await postgres_auth.delete_conversation(conversation_id)
         return {"message": "Conversation deleted successfully"}
     except HTTPException:
         raise
@@ -653,12 +653,12 @@ async def delete_conversation(
 async def cleanup_empty_conversations(current_user: dict = Depends(get_current_user)):
     """Delete all empty conversations for the current user"""
     try:
-        conversations = await firestore_auth.get_user_conversations(current_user["uid"])
+        conversations = await postgres_auth.get_user_conversations(current_user["uid"])
         empty_conversations = [conv for conv in conversations if len(conv.get("messages", [])) == 0]
         
         deleted_count = 0
         for conv in empty_conversations:
-            await firestore_auth.delete_conversation(conv["id"])
+            await postgres_auth.delete_conversation(conv["id"])
             deleted_count += 1
         
         return {"message": f"Deleted {deleted_count} empty conversations"}

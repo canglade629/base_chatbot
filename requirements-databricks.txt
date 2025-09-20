@@ -1,0 +1,25 @@
+# Databricks Apps Requirements
+# Optimized for Databricks Apps environment with pre-installed libraries
+
+# Core FastAPI and server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# HTTP client for API calls
+httpx==0.25.2
+
+# Configuration and validation
+python-dotenv==1.0.0
+pydantic[email]==2.5.0
+
+# Authentication (minimal for Databricks)
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Note: PostgreSQL dependencies removed for Databricks Apps
+# The app will use mock mode for authentication in Databricks environment
+# asyncpg==0.29.0
+# psycopg2-binary==2.9.9
+
+# Additional dependencies that might be needed
+email-validator==2.3.0

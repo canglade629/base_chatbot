@@ -1950,8 +1950,9 @@
             const [isLoading, setIsLoading] = useState(false);
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
             const [user, setUser] = useState(null);
-            const [isAuthenticated, setIsAuthenticated] = useState(false);
-            const [authLoading, setAuthLoading] = useState(true);
+            const [isAuthenticated, setIsAuthenticated] = useState(true); // Always authenticated in Databricks Apps
+            const [authLoading, setAuthLoading] = useState(false); // No auth loading needed
+            const [userInfo, setUserInfo] = useState(null);
             const [conversationsLoading, setConversationsLoading] = useState(false);
             const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
             const [isMobile, setIsMobile] = useState(false);
@@ -1999,110 +2000,97 @@
                 }
             };
 
-            // Authentication functions using session manager
+            // Authentication functions for Databricks Apps
             const checkAuth = async () => {
-                if (window.sessionManager) {
-                    // Check if user is authenticated using session manager
-                    if (window.sessionManager.isUserAuthenticated()) {
-                        const user = window.sessionManager.getCurrentUser();
-                        setUser(user);
-                        setIsAuthenticated(true);
-                    } else {
-                        // Try to restore session
-                        try {
-                            await window.sessionManager.refreshAccessToken();
-                            const user = window.sessionManager.getCurrentUser();
-                            if (user) {
-                                setUser(user);
-                                setIsAuthenticated(true);
-                            }
-                        } catch (error) {
-                            console.error('Session restoration failed:', error);
-                        }
-                    }
-                } else {
-                    // Fallback to old method if session manager not available
-                    const token = localStorage.getItem('access_token');
-                    const userData = localStorage.getItem('user');
-                    
-                    if (token && userData) {
-                        try {
-                            const response = await fetch('/auth/me', {
-                                headers: {
-                                    'Authorization': `Bearer ${token}`
-                                }
-                            });
-                            
-                            if (response.ok) {
-                                const user = await response.json();
-                                setUser(user);
-                                setIsAuthenticated(true);
-                            } else {
-                                // Token invalid, try refresh
-                                await refreshToken();
-                            }
-                        } catch (error) {
-                            console.error('Auth check failed:', error);
-                            await refreshToken();
-                        }
-                    }
-                }
-                setAuthLoading(false);
-            };
-
-            const refreshToken = async () => {
-                const refreshToken = localStorage.getItem('refresh_token');
-                if (!refreshToken) {
-                    setAuthLoading(false);
-                    return;
-                }
-
                 try {
-                    const response = await fetch('/auth/refresh', {
-                        method: 'POST',
+                    // In Databricks Apps, we're always authenticated
+                    // Just fetch user info from the backend
+                    const response = await fetch('/user/info', {
+                        method: 'GET',
                         headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ refresh_token: refreshToken }),
+                            'Content-Type': 'application/json'
+                        }
                     });
-
+                    
                     if (response.ok) {
                         const data = await response.json();
-                        localStorage.setItem('access_token', data.access_token);
-                        localStorage.setItem('refresh_token', data.refresh_token);
-                        localStorage.setItem('user', JSON.stringify(data.user));
+                        console.log('User info received:', data.user);
+                        setUserInfo(data.user);
                         setUser(data.user);
                         setIsAuthenticated(true);
                     } else {
-                        // Refresh failed, redirect to login
-                        localStorage.removeItem('access_token');
-                        localStorage.removeItem('refresh_token');
-                        localStorage.removeItem('user');
-                        setUser(null);
-                        setIsAuthenticated(false);
+                        console.error('Failed to fetch user info:', response.status);
+                        // Fallback user info for development
+                        const fallbackUser = {
+                            uid: "databricks_user",
+                            email: "databricks.user@company.com",
+                            display_name: "Databricks User",
+                            username: "databricks_user",
+                            initials: "DU",
+                            groups: [],
+                            roles: [],
+                            scopes: []
+                        };
+                        console.log('Using fallback user:', fallbackUser);
+                        setUserInfo(fallbackUser);
+                        setUser(fallbackUser);
+                        setIsAuthenticated(true);
                     }
                 } catch (error) {
-                    console.error('Token refresh failed:', error);
-                    localStorage.removeItem('access_token');
-                    localStorage.removeItem('refresh_token');
-                    localStorage.removeItem('user');
-                    setUser(null);
-                    setIsAuthenticated(false);
+                    console.error('Auth check failed:', error);
+                    // Fallback user info for development
+                    const fallbackUser = {
+                        uid: "databricks_user",
+                        email: "databricks.user@company.com",
+                        display_name: "Databricks User",
+                        username: "databricks_user",
+                        initials: "DU",
+                        groups: [],
+                        roles: [],
+                        scopes: []
+                    };
+                    console.log('Using fallback user due to error:', fallbackUser);
+                    setUserInfo(fallbackUser);
+                    setUser(fallbackUser);
+                    setIsAuthenticated(true);
+                } finally {
+                    setAuthLoading(false);
                 }
             };
 
+            // No refresh token or logout needed for Databricks Apps
             const logout = () => {
-                if (window.sessionManager) {
-                    window.sessionManager.logout();
-                } else {
-                    localStorage.removeItem('access_token');
-                    localStorage.removeItem('refresh_token');
-                    localStorage.removeItem('user');
+                // In Databricks Apps, logout is handled by the platform
+                console.log('Logout handled by Databricks Apps platform');
+            };
+
+            // Test function for development mode
+            const testWithMockToken = async () => {
+                const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIiwiZW1haWwiOiJ0ZXN0QGRhdGFicmlja3MuY29tIiwibmFtZSI6IlRlc3QgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6InRlc3R1c2VyIiwiZ3JvdXBzIjpbImFkbWlucyIsImRldmVsb3BlcnMiXSwicm9sZXMiOlsiYWRtaW4iXSwic2NvcGUiOiJpYW0uYWNjZXNzLWNvbnRyb2w6cmVhZCBpYW0uY3VycmVudC11c2VyOnJlYWQiLCJpYXQiOjE2NDA5OTUyMDAsImV4cCI6MTY0MDk5ODgwMCwiaXNzIjoiaHR0cHM6Ly9kYXRhYnJpY2tzLmNvbSIsImF1ZCI6ImRhdGFicmlja3MifQ.test';
+                
+                try {
+                    const response = await fetch('/user/info', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-forwarded-access-token': mockToken
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('Mock token user info received:', data.user);
+                        setUserInfo(data.user);
+                        setUser(data.user);
+                        alert('Mock token test successful! User: ' + data.user.email);
+                    } else {
+                        console.error('Mock token test failed:', response.status);
+                        alert('Mock token test failed: ' + response.status);
+                    }
+                } catch (error) {
+                    console.error('Mock token test error:', error);
+                    alert('Mock token test error: ' + error.message);
                 }
-                setUser(null);
-                setIsAuthenticated(false);
-                setConversations([]);
-                setCurrentConversationId(null);
             };
 
             const toggleDarkMode = () => {
@@ -2118,17 +2106,12 @@
                 
                 setConversationsLoading(true);
                 try {
-                    let response;
-                    if (window.sessionManager) {
-                        response = await window.sessionManager.authenticatedRequest('/conversations');
-                    } else {
-                        const token = localStorage.getItem('access_token');
-                        response = await fetch('/conversations', {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                    }
+                    // For Databricks Apps, no authentication headers needed
+                    const response = await fetch('/conversations', {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
 
                     if (response.ok) {
                         const conversationsData = await response.json();
@@ -2137,19 +2120,13 @@
                         const emptyConversations = conversationsData.filter(conv => conv.messages.length === 0);
                         if (emptyConversations.length > 0) {
                             try {
-                                if (window.sessionManager) {
-                                    await window.sessionManager.authenticatedRequest('/conversations/cleanup', {
-                                        method: 'POST'
-                                    });
-                                } else {
-                                    const token = localStorage.getItem('access_token');
-                                    await fetch('/conversations/cleanup', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Authorization': `Bearer ${token}`
-                                        }
-                                    });
-                                }
+                                // For Databricks Apps, no authentication headers needed
+                                await fetch('/conversations/cleanup', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
                             } catch (error) {
                                 console.error('Error cleaning up empty conversations:', error);
                             }
@@ -2197,26 +2174,14 @@
 
             const createNewConversation = async () => {
                 try {
-                    let response;
-                    if (window.sessionManager) {
-                        response = await window.sessionManager.authenticatedRequest('/conversations', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ title: "New Conversation" })
-                        });
-                    } else {
-                        const token = localStorage.getItem('access_token');
-                        response = await fetch('/conversations', {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ title: "New Conversation" })
-                        });
-                    }
+                    // For Databricks Apps, no authentication headers needed
+                    const response = await fetch('/conversations', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ title: "New Conversation" })
+                    });
 
                     if (response.ok) {
                         const newConv = await response.json();
@@ -2245,25 +2210,14 @@
                 }
                 
                 try {
-                    if (window.sessionManager) {
-                        await window.sessionManager.authenticatedRequest(`/conversations/${conversationId}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ messages: messages })
-                        });
-                    } else {
-                        const token = localStorage.getItem('access_token');
-                        await fetch(`/conversations/${conversationId}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ messages: messages })
-                        });
-                    }
+                    // For Databricks Apps, no authentication headers needed
+                    await fetch(`/conversations/${conversationId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ messages: messages })
+                    });
                 } catch (error) {
                     console.error('Error saving conversation:', error);
                 }
@@ -2344,29 +2298,7 @@
                 checkAuth();
                 
                 // Set up session event listeners
-                if (window.sessionManager) {
-                    window.sessionManager.on('sessionExpired', () => {
-                        setUser(null);
-                        setIsAuthenticated(false);
-                        setConversations([]);
-                        setCurrentConversationId(null);
-                        // Redirect to auth page
-                        window.location.href = '/auth.html';
-                    });
-                    
-                    window.sessionManager.on('logout', () => {
-                        setUser(null);
-                        setIsAuthenticated(false);
-                        setConversations([]);
-                        setCurrentConversationId(null);
-                    });
-                    
-                    window.sessionManager.on('tokenRefreshed', (data) => {
-                        if (data.user) {
-                            setUser(data.user);
-                        }
-                    });
-                }
+                // No session manager events needed for Databricks Apps
             }, []);
 
             useEffect(() => {
@@ -2420,12 +2352,7 @@
             const sendMessage = async (messageText) => {
                 console.log('Sending message:', messageText);
                 
-                // Check if user is authenticated before sending message
-                if (!isAuthenticated) {
-                    console.log('User not authenticated, redirecting to auth page');
-                    window.location.href = '/auth.html';
-                    return;
-                }
+                // No authentication check needed for Databricks Apps
                 
                 setHasUserInteracted(true); // Mark that user has interacted
                 
@@ -2468,25 +2395,14 @@
                         // Update title in Firestore asynchronously
                         (async () => {
                             try {
-                                if (window.sessionManager) {
-                                    await window.sessionManager.authenticatedRequest(`/conversations/${conversationId}`, {
-                                        method: 'PUT',
-                                        headers: {
-                                            'Content-Type': 'application/json'
-                                        },
-                                        body: JSON.stringify({ title: newTitle })
-                                    });
-                                } else {
-                                    const token = localStorage.getItem('access_token');
-                                    await fetch(`/conversations/${conversationId}`, {
-                                        method: 'PUT',
-                                        headers: {
-                                            'Authorization': `Bearer ${token}`,
-                                            'Content-Type': 'application/json'
-                                        },
-                                        body: JSON.stringify({ title: newTitle })
-                                    });
-                                }
+                                // For Databricks Apps, no authentication headers needed
+                                await fetch(`/conversations/${conversationId}`, {
+                                    method: 'PUT',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({ title: newTitle })
+                                });
                             } catch (error) {
                                 console.error('Error updating conversation title:', error);
                             }
@@ -2505,26 +2421,14 @@
                 });
 
                 try {
-                    let response;
-                    if (window.sessionManager) {
-                        response = await window.sessionManager.authenticatedRequest('/chat', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ message: messageText })
-                        });
-                    } else {
-                        const token = localStorage.getItem('access_token');
-                        response = await fetch('/chat', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify({ message: messageText }),
-                        });
-                    }
+                    // For Databricks Apps, no authentication headers needed
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ message: messageText })
+                    });
 
                     if (!response.ok) {
                         if (response.status === 504) {
@@ -2542,62 +2446,6 @@
                                     : conv
                             ));
                             return;
-                        } else if (response.status === 401 || response.status === 403) {
-                            // Token expired or not authenticated, try refresh
-                            try {
-                            await refreshToken();
-                            // Retry with new token
-                            const newToken = localStorage.getItem('access_token');
-                                if (!newToken) {
-                                    // No token available, redirect to auth
-                                    window.location.href = '/auth.html';
-                                    return;
-                                }
-                                
-                            const retryResponse = await fetch('/chat', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${newToken}`
-                                },
-                                body: JSON.stringify({ message: messageText }),
-                            });
-                            
-                            if (!retryResponse.ok) {
-                                    if (retryResponse.status === 401 || retryResponse.status === 403) {
-                                        // Still not authenticated, redirect to auth
-                                        window.location.href = '/auth.html';
-                                        return;
-                                    }
-                                    throw new Error(`Server error: ${retryResponse.status}`);
-                            }
-                            
-                            const data = await retryResponse.json();
-                            const assistantMessage = {
-                                id: Date.now() + 1,
-                                text: data.response,
-                                isUser: false
-                            };
-                            
-                            setConversations(prev => prev.map(conv => 
-                                conv.id === conversationId 
-                                    ? { ...conv, messages: [...conv.messages, assistantMessage] }
-                                    : conv
-                            ));
-                            
-                            // Save to Firestore
-                            setConversations(prev => {
-                                const currentConv = prev.find(c => c.id === conversationId);
-                                if (currentConv) {
-                                    saveConversation(conversationId, currentConv.messages);
-                                }
-                                return prev;
-                            });
-                            } catch (refreshError) {
-                                console.error('Token refresh failed:', refreshError);
-                                window.location.href = '/auth.html';
-                                return;
-                            }
                         } else if (response.status === 502) {
                             throw new Error('Service temporarily unavailable. Please try again.');
                         } else {
@@ -2632,12 +2480,7 @@
                 } catch (error) {
                     console.error('Error sending message:', error);
                     
-                    // Check if it's an authentication error
-                    if (error.message.includes('Authentication failed') || error.message.includes('401') || error.message.includes('403')) {
-                        // Redirect to auth page for authentication errors
-                        window.location.href = '/auth.html';
-                        return;
-                    }
+                    // No authentication errors to handle for Databricks Apps
                     
                     // Show user-friendly error message
                     const errorMessage = {
@@ -2694,20 +2537,13 @@
                 if (!conversationId) return;
                 
                 try {
-                    let response;
-                    if (window.sessionManager) {
-                        response = await window.sessionManager.authenticatedRequest(`/conversations/${conversationId}`, {
-                            method: 'DELETE'
-                        });
-                    } else {
-                        const token = localStorage.getItem('access_token');
-                        response = await fetch(`/conversations/${conversationId}`, {
-                            method: 'DELETE',
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                    }
+                    // For Databricks Apps, no authentication headers needed
+                    const response = await fetch(`/conversations/${conversationId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
 
                     if (response.ok) {
                         // Remove conversation from local state
@@ -2729,26 +2565,14 @@
                 if (!conversationId || !newTitle.trim()) return;
                 
                 try {
-                    let response;
-                    if (window.sessionManager) {
-                        response = await window.sessionManager.authenticatedRequest(`/conversations/${conversationId}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ title: newTitle.trim() })
-                        });
-                    } else {
-                        const token = localStorage.getItem('access_token');
-                        response = await fetch(`/conversations/${conversationId}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ title: newTitle.trim() })
-                        });
-                    }
+                    // For Databricks Apps, no authentication headers needed
+                    const response = await fetch(`/conversations/${conversationId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ title: newTitle.trim() })
+                    });
 
                     if (response.ok) {
                         // Update conversation title in local state
@@ -2860,6 +2684,9 @@
                                         <h1 className="text-sm font-semibold text-gray-800">Danone Onesource 2.0</h1>
                                     </div>
                                 </div>
+                                
+                                {/* User information display removed */}
+                                
                                 <div className="flex items-center space-x-2">
                                     {/* New Conversation Button */}
                                     <button
