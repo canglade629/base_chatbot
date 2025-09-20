@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ICC Legal Research Assistant</title>
+    <title>Danone Onesource 2.0 Assistant</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1568,8 +1568,8 @@
                             <div className="text-center mb-6 sm:mb-8">
                                 <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center mx-auto mb-3 sm:mb-4 logo-container">
                                     <img 
-                                        src="/static/icc_logo.svg" 
-                                        alt="ICC Logo" 
+                                        src="/static/onesource-logo.png" 
+                                        alt="OneSource Logo" 
                                         className="w-full h-full object-contain"
                                         onError={(e) => {
                                             e.target.style.display = 'none';
@@ -1580,8 +1580,8 @@
                                         <i className="fas fa-robot text-white text-lg sm:text-2xl"></i>
                                     </div>
                                 </div>
-                                <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800 mb-2">ICC Legal Research Assistant</h1>
-                                <p className="text-sm sm:text-base text-gray-600">Search past judgments and explore international humanitarian law texts</p>
+                                <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800 mb-2">Danone Onesource 2.0 Assistant</h1>
+                                <p className="text-sm sm:text-base text-gray-600">Search OneSource 2.0 documentation</p>
                             </div>
                             <form onSubmit={handleSubmit} className="relative">
                                 <div className="relative">
@@ -1594,7 +1594,7 @@
                                         onFocus={handleFocus}
                                         onBlur={handleBlur}
                                         onClick={handleClick}
-                                        placeholder={isMobile ? "Ask about legal provisions..." : "Search past judgments or ask about IHL provisions..."}
+                                        placeholder={isMobile ? "Ask about OneSource 2.0..." : "Search OneSource 2.0 documentation or ask questions..."}
                                         className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${isKeyboardOpen ? 'keyboard-open' : ''}`}
                                         rows="2"
                                         disabled={isLoading}
@@ -1648,7 +1648,7 @@
                                     onFocus={handleFocus}
                                     onBlur={handleBlur}
                                     onClick={handleClick}
-                                    placeholder={isMobile ? "Ask about legal provisions..." : "Search past judgments or ask about IHL provisions..."}
+                                    placeholder={isMobile ? "Ask about OneSource 2.0..." : "Search OneSource 2.0 documentation or ask questions..."}
                                     className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${isKeyboardOpen ? 'keyboard-open' : ''}`}
                                     rows="2"
                                     disabled={isLoading}
@@ -1866,7 +1866,7 @@
                                             {user?.display_name || user?.email || 'User'}
                                         </p>
                                         <p className="text-xs text-gray-400 truncate">
-                                            {user?.email || 'ICC Legal Research'}
+                                            {user?.email || 'Danone Onesource 2.0'}
                                         </p>
                                     </div>
                                     <div className="relative">
@@ -2841,8 +2841,8 @@
                                         title="Go to latest conversation"
                                     >
                                         <img 
-                                            src="/static/icc_logo.svg" 
-                                            alt="ICC Logo" 
+                                            src="/static/onesource-logo.png" 
+                                            alt="OneSource Logo" 
                                             className="w-full h-full object-contain"
                                             onError={(e) => {
                                                 e.target.style.display = 'none';
@@ -2854,10 +2854,10 @@
                                         </div>
                                     </div>
                                     <div className="hidden sm:block">
-                                        <h1 className="text-base sm:text-lg font-semibold text-gray-800">ICC Legal Research Assistant</h1>
+                                        <h1 className="text-base sm:text-lg font-semibold text-gray-800">Danone Onesource 2.0 Assistant</h1>
                                     </div>
                                     <div className="sm:hidden">
-                                        <h1 className="text-sm font-semibold text-gray-800">ICC Legal Research</h1>
+                                        <h1 className="text-sm font-semibold text-gray-800">Danone Onesource 2.0</h1>
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2">

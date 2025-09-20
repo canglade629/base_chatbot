@@ -1,23 +1,26 @@
-# ICC Legal Research Assistant
+# Base Chatbot
 
-A comprehensive legal research assistant for International Criminal Court (ICC) documentation, built with FastAPI backend and modern web frontend, featuring user authentication, conversation management, and AI-powered document analysis capabilities.
+A comprehensive chatbot application with FastAPI backend and modern web frontend, featuring user authentication, conversation management, and AI-powered capabilities with Databricks integration.
 
 ## 🏗️ Project Structure
 
 ```
-icc_chatbot/
+base_chatbot/
 ├── backend/                    # Backend API and services
 │   ├── api/                   # FastAPI application
 │   │   └── app.py            # Main API application with all endpoints
 │   ├── services/             # Business logic services
 │   │   ├── auth_service.py   # JWT authentication service
-│   │   ├── firestore_auth.py # Firestore authentication
+│   │   ├── databricks_lakebase_service.py # Databricks Lakebase service
+│   │   ├── lakebase_postgres_service.py # Lakebase PostgreSQL service
+│   │   ├── postgres_service.py # PostgreSQL service
+│   │   ├── firestore_auth.py # Firestore authentication (legacy)
 │   │   ├── firebase_config.py # Firebase configuration
 │   │   └── firebase_config_mock.py # Mock auth for development
 │   └── models/               # Data models (future expansion)
 ├── frontend/                  # Frontend application
 │   ├── static/               # Static assets
-│   │   └── icc_logo.svg      # ICC logo
+│   │   └── onesource-logo.png # Application logo
 │   ├── components/           # React components
 │   │   └── auth.html         # Authentication page
 │   ├── js/                   # JavaScript modules
@@ -26,32 +29,60 @@ icc_chatbot/
 │   │   └── session-timeout-warning.js # Timeout handling
 │   ├── index.html            # Main React application
 │   └── index_simple.html     # Simplified version
-├── data_processing/          # Data processing and ML
-│   ├── chunking/            # Document chunking scripts
-│   │   ├── geneva_convention_chunker.py
-│   │   ├── pdf_chunker.py
-│   │   ├── run_geneva_chunking.py
-│   │   └── section_classifier.py
-│   ├── notebooks/           # Jupyter notebooks
-│   │   └── ICC_Enhanced_RAG_Production.py
-│   └── output/              # Processed data outputs
-│       └── *.parquet        # Chunked data files
-├── config/                   # Configuration files
-│   └── firebase-credentials/ # Firebase service account (local only)
-├── data/                     # Raw data files
-│   └── AI IHL/              # International Humanitarian Law documents
-│       ├── documentation/   # Geneva Conventions, Protocols
-│       └── past_judgements/ # ICC case files
-├── docs/                     # Documentation
+├── databricks-setup/         # Databricks environment setup
+│   ├── setup.py              # Main setup script
+│   ├── check_complete_setup.py # Comprehensive check script
+│   ├── config_manager.py     # Configuration management
+│   ├── environments.json     # Environment-specific configurations
+│   ├── setup_config.py       # Interactive configuration setup
+│   ├── validate_config.py    # Configuration validation
+│   └── README.md            # Setup documentation
 ├── main.py                   # Application entry point
-├── requirements.txt          # Python dependencies
-├── requirements-web.txt      # Minimal web dependencies
-├── Dockerfile               # Container configuration
-├── cloud-run.yaml           # Cloud Run deployment config
-├── deploy.sh                # Deployment script
-├── setup_local.py           # Local development setup
-├── start_local.sh           # Local startup script
-└── README.md                # This file
+├── env.example              # Environment variables template
+├── requirements.txt         # Python dependencies
+├── requirements-web.txt     # Web-specific dependencies
+└── README.md               # This file
+```
+
+## 🚀 Quick Start
+
+### 1. Setup Environment
+```bash
+# Copy environment template
+cp env.example .env
+
+# Edit .env with your configuration
+# The setup script will use config/environments.json for Databricks settings
+```
+
+### 2. Install Dependencies
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# For web development
+pip install -r requirements-web.txt
+```
+
+### 3. Setup Databricks Environment
+```bash
+# Setup everything (development environment)
+python databricks-setup/setup.py
+
+# Check setup
+python databricks-setup/check_complete_setup.py
+
+# Setup specific environment
+python databricks-setup/setup.py --environment staging
+
+# Dry run to see what would be done
+python databricks-setup/setup.py --dry-run
+```
+
+### 4. Run Application
+```bash
+# Start the application
+python main.py
 ```
 
 ## 🚀 Features
@@ -128,7 +159,23 @@ DEBUG=false
 
 **Note**: For local development, the app will automatically use mock authentication if Firebase credentials are not available.
 
-### 5. Run the Application
+### 5. Set up Databricks Environment (Optional - for AI features)
+1. Configure your Databricks CLI with a profile:
+   ```bash
+   databricks configure --profile dbxworkspace
+   ```
+2. Set up the complete Databricks environment:
+   ```bash
+   python databricks-setup/setup_databricks_env.py
+   ```
+3. Verify the setup:
+   ```bash
+   python databricks-setup/check_databricks_env.py
+   ```
+
+See `databricks-setup/README.md` for detailed setup instructions.
+
+### 6. Run the Application
 ```bash
 python main.py
 ```

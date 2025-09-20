@@ -1,0 +1,59 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+Lakebase documentation:
+- https://learn.microsoft.com/en-us/azure/databricks/oltp/instances/create/
+- https://learn.microsoft.com/en-us/azure/databricks/oltp/instances/authentication
+- https://learn.microsoft.com/en-us/azure/databricks/oltp/instances/manage-privileges
+- https://learn.microsoft.com/en-us/azure/databricks/oltp/instances/pg-roles
+- https://learn.microsoft.com/en-us/azure/databricks/oltp/instances/query/
+
+Create a Lakebase Database Instance
+Use the Databricks CLI’s database group of commands to manage Lakebase.
+The primary command to create a Lakebase (OLTP) database instance is:
+databricks database create-database-instance --name <INSTANCE_NAME> --catalog <CATALOG_NAME> --capacity <CAPACITY_UNIT>
+bash
+
+Replace <INSTANCE_NAME>, <CATALOG_NAME>, and <CAPACITY_UNIT> with your chosen database instance name, the Unity Catalog name, and the compute capacity (supported units typically are 1, 2, 4, or 8, relating to provisioned compute for OLTP workloads). 
+4
+3. Create a Database Within the Instance
+After instance creation, create a logical database within that instance:
+databricks database create-database-catalog --instance-id <INSTANCE_ID> --name <DB_NAME>
+bash
+
+Replace <INSTANCE_ID> (retrieved from the response of the creation command or using databricks database list-database-instances) and <DB_NAME> with your desired database name. 
+4
+4. (Optional) Create Tables
+You can create a table within your new Lakebase database instance:
+databricks database create-database-table --instance-id <INSTANCE_ID> --database <DB_NAME> --name <TABLE_NAME> --schema <SCHEMA_DEFINITION>
+bash
+
+Set <TABLE_NAME> and <SCHEMA_DEFINITION> to your desired values. Schema definition format typically follows PostgreSQL syntax. 
+4
+5. List and Manage Database Instances
+To list all Lakebase instances:
+databricks database list-database-instances
+bash
+
+For more details (including how to delete databases, manage users, or synchronize data from Unity Catalog), review additional subcommands in the CLI database group. 
+4
+Example CLI Workflow
+# Authenticate (if not already)
+databricks auth login
+
+# Create a Lakebase database instance
+databricks database create-database-instance --name my_lakebase_instance --catalog main --capacity 2
+
+# List instances to find your instance ID
+databricks database list-database-instances
+
+# Create a new database within your instance
+databricks database create-database-catalog --instance-id <INSTANCE_ID> --name my_oltp_db
+
+# Create a table (example schema)
+databricks database create-database-table --instance-id <INSTANCE_ID> --database my_oltp_db --name users --schema "id SERIAL PRIMARY KEY, name VARCHAR(100), email VARCHAR(100)"
+bash
+
