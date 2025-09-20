@@ -807,18 +807,54 @@
                 font-size: 16px;
             }
             
+            /* Mobile text input improvements */
+            .mobile-input {
+                -webkit-appearance: none;
+                appearance: none;
+                -webkit-tap-highlight-color: transparent;
+                -webkit-touch-callout: none;
+                -webkit-user-select: text;
+                user-select: text;
+                -webkit-text-size-adjust: 100%;
+                text-size-adjust: 100%;
+            }
+            
+            /* Prevent input jumping on mobile */
+            .mobile-input:focus {
+                -webkit-transform: translateZ(0);
+                transform: translateZ(0);
+                -webkit-backface-visibility: hidden;
+                backface-visibility: hidden;
+            }
+            
             /* Better touch targets */
             button, .clickable {
                 min-height: 44px;
                 min-width: 44px;
             }
             
-            /* Mobile send button specific styling */
+            /* Send button positioning and interaction fixes */
             .mobile-send-button {
-                min-height: 24px;
-                min-width: 24px;
+                z-index: 10;
+                pointer-events: auto;
                 touch-action: manipulation;
+                -webkit-tap-highlight-color: transparent;
             }
+            
+            /* Ensure textarea doesn't interfere with button */
+            .chat-textarea {
+                padding-right: 3rem; /* Make space for the button */
+                transition: height 0.2s ease-out, margin-top 0.2s ease-out;
+            }
+            
+            /* Prevent text selection on button */
+            .mobile-send-button:active {
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
+            }
+            
             
             /* Smooth keyboard transitions */
             .chat-input-container {
@@ -1097,6 +1133,7 @@
             .messages-container {
                 padding-top: 1.5rem !important;
                 padding-bottom: 1rem !important;
+                transition: height 0.2s ease-out;
             }
             
             /* Add extra top padding to first message on mobile */
@@ -1297,12 +1334,29 @@
                 }
             };
 
-            const handleKeyPress = (e) => {
+            const handleKeyDown = (e) => {
+                // Allow standard keyboard shortcuts (Ctrl+A, Ctrl+C, Ctrl+V, etc.)
+                if (e.ctrlKey || e.metaKey) {
+                    return; // Let the browser handle standard shortcuts
+                }
+                
+                // Allow special keys like Delete, Backspace, Arrow keys, etc.
+                const specialKeys = [
+                    'Delete', 'Backspace', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+                    'Home', 'End', 'PageUp', 'PageDown', 'Tab', 'Escape', 'F1', 'F2', 'F3',
+                    'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+                ];
+                
+                if (specialKeys.includes(e.key)) {
+                    return; // Let the browser handle special keys
+                }
+                
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSubmit(e);
                 }
             };
+
 
             const handlePaste = (e) => {
                 console.log('Paste event triggered');
@@ -1326,6 +1380,69 @@
                 }
             };
 
+            // Input handler with safe height adjustment
+            const handleInputChange = (e) => {
+                const newValue = e.target.value;
+                setMessage(newValue);
+                
+                // Adjust height after state update
+                setTimeout(() => {
+                    adjustTextareaHeight(e.target);
+                }, 0);
+            };
+
+            // Safe height adjustment function
+            const adjustTextareaHeight = (textarea) => {
+                if (!textarea) return;
+                
+                // Store cursor position
+                const cursorPosition = textarea.selectionStart;
+                
+                // Reset height to auto to get natural height
+                textarea.style.height = 'auto';
+                
+                // Calculate new height based on scroll height
+                const scrollHeight = textarea.scrollHeight;
+                const minHeight = 64; // 2 rows
+                const maxHeight = 200; // Maximum height before scrolling
+                const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
+                
+                // For chat interface (not centered), expand upward by adjusting margin-top
+                if (!isCentered) {
+                    const heightDifference = newHeight - minHeight;
+                    if (heightDifference > 0) {
+                        // Move the textarea up by adjusting its margin-top
+                        textarea.style.marginTop = `-${heightDifference}px`;
+                        
+                        // Shrink the messages container to compensate
+                        const messagesContainer = document.querySelector('.messages-container');
+                        if (messagesContainer) {
+                            const currentHeight = messagesContainer.style.height || 'calc(100vh - 200px)';
+                            const baseHeight = 'calc(100vh - 200px)';
+                            const adjustedHeight = `calc(100vh - 200px - ${heightDifference}px)`;
+                            messagesContainer.style.height = adjustedHeight;
+                        }
+                    } else {
+                        // Reset margin when height is at minimum
+                        textarea.style.marginTop = '0px';
+                        
+                        // Reset messages container height
+                        const messagesContainer = document.querySelector('.messages-container');
+                        if (messagesContainer) {
+                            messagesContainer.style.height = 'calc(100vh - 200px)';
+                        }
+                    }
+                }
+                
+                // Set the new height
+                textarea.style.height = newHeight + 'px';
+                
+                // Restore cursor position
+                if (cursorPosition !== null) {
+                    textarea.setSelectionRange(cursorPosition, cursorPosition);
+                }
+            };
+
             const checkScroll = () => {
                 if (textareaRef.current) {
                     const hasScrollbar = textareaRef.current.scrollHeight > textareaRef.current.clientHeight;
@@ -1333,16 +1450,7 @@
                 }
             };
 
-            useEffect(() => {
-                if (textareaRef.current) {
-                    // Reset height to auto first
-                    textareaRef.current.style.height = 'auto';
-                    // Set height based on scroll height
-                    const scrollHeight = textareaRef.current.scrollHeight;
-                    textareaRef.current.style.height = scrollHeight + 'px';
-                    checkScroll();
-                }
-            }, [message]);
+            // Remove the problematic useEffect that was causing character skipping
 
             // Additional effect to ensure proper sizing on mount/refresh
             useEffect(() => {
@@ -1480,18 +1588,19 @@
                                     <textarea
                                         ref={textareaRef}
                                         value={message}
-                                        onChange={(e) => setMessage(e.target.value)}
-                                        onKeyPress={handleKeyPress}
+                                        onChange={handleInputChange}
+                                        onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}
                                         onFocus={handleFocus}
                                         onBlur={handleBlur}
                                         onClick={handleClick}
                                         placeholder={isMobile ? "Ask about legal provisions..." : "Search past judgments or ask about IHL provisions..."}
-                                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 ${hasScroll ? 'pr-12 sm:pr-14' : 'pr-12 sm:pr-14'} rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${hasScroll ? 'has-scroll' : ''} ${isKeyboardOpen ? 'keyboard-open' : ''}`}
-                                        rows="1"
+                                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${isKeyboardOpen ? 'keyboard-open' : ''}`}
+                                        rows="2"
                                         disabled={isLoading}
                                         style={{ 
-                                            maxHeight: hasScroll ? '300px' : '120px', 
+                                            minHeight: '64px',
+                                            maxHeight: '200px',
                                             scrollbarWidth: 'thin',
                                             fontSize: isMobile ? '16px' : undefined
                                         }}
@@ -1500,7 +1609,20 @@
                                         <button
                                             type="submit"
                                             disabled={isLoading}
-                                            className={`absolute ${hasScroll ? 'right-2 sm:right-3 bottom-2 sm:bottom-3' : 'right-2 sm:right-3 top-1/2 transform -translate-y-1/2'} w-6 h-6 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-gray-700 hover:bg-gray-800 text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed mobile-send-button`}
+                                            className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 w-6 h-6 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-gray-700 hover:bg-gray-800 text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed mobile-send-button"
+                                            style={{
+                                                zIndex: 10,
+                                                pointerEvents: 'auto',
+                                                touchAction: 'manipulation'
+                                            }}
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                            }}
+                                            onTouchStart={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                            }}
                                         >
                                             <i className="fas fa-arrow-up text-xs sm:text-sm"></i>
                                         </button>
@@ -1520,18 +1642,19 @@
                                 <textarea
                                     ref={textareaRef}
                                     value={message}
-                                    onChange={(e) => setMessage(e.target.value)}
-                                    onKeyPress={handleKeyPress}
+                                    onChange={handleInputChange}
+                                    onKeyDown={handleKeyDown}
                                     onPaste={handlePaste}
                                     onFocus={handleFocus}
                                     onBlur={handleBlur}
                                     onClick={handleClick}
                                     placeholder={isMobile ? "Ask about legal provisions..." : "Search past judgments or ask about IHL provisions..."}
-                                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 ${hasScroll ? 'pr-12 sm:pr-14' : 'pr-12 sm:pr-14'} rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${hasScroll ? 'has-scroll' : ''} ${isKeyboardOpen ? 'keyboard-open' : ''}`}
-                                    rows="1"
+                                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${isKeyboardOpen ? 'keyboard-open' : ''}`}
+                                    rows="2"
                                     disabled={isLoading}
                                     style={{ 
-                                        maxHeight: hasScroll ? '300px' : '120px', 
+                                        minHeight: '64px',
+                                        maxHeight: '200px',
                                         scrollbarWidth: 'thin',
                                         fontSize: isMobile ? '16px' : undefined
                                     }}
@@ -1540,7 +1663,20 @@
                                     <button
                                         type="submit"
                                         disabled={isLoading}
-                                        className={`absolute ${hasScroll ? 'right-2 sm:right-3 bottom-2 sm:bottom-3' : 'right-2 sm:right-3 top-1/2 transform -translate-y-1/2'} w-6 h-6 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-gray-700 hover:bg-gray-800 text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed mobile-send-button`}
+                                        className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 w-6 h-6 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-gray-700 hover:bg-gray-800 text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed mobile-send-button"
+                                        style={{
+                                            zIndex: 10,
+                                            pointerEvents: 'auto',
+                                            touchAction: 'manipulation'
+                                        }}
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }}
+                                        onTouchStart={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }}
                                     >
                                         <i className="fas fa-arrow-up text-xs sm:text-sm"></i>
                                     </button>

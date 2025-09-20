@@ -237,6 +237,44 @@
             overflow-wrap: break-word;
             white-space: pre-wrap;
         }
+        
+        /* Mobile text input improvements */
+        .mobile-input {
+            -webkit-appearance: none;
+            appearance: none;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: text;
+            user-select: text;
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+        
+        /* Prevent input jumping on mobile */
+        .mobile-input:focus {
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+        }
+        
+        /* Prevent zoom on input focus */
+        textarea {
+            font-size: 16px;
+        }
+        
+        /* Button interaction improvements */
+        button {
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        button:active {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
     </style>
 </head>
 <body>
@@ -438,6 +476,42 @@
                     textareaRef.current.focus();
                 }
             };
+
+            // Input handler with safe height adjustment
+            const handleInputChange = (e) => {
+                const newValue = e.target.value;
+                setInput(newValue);
+                
+                // Adjust height after state update
+                setTimeout(() => {
+                    adjustTextareaHeight(e.target);
+                }, 0);
+            };
+
+            // Safe height adjustment function
+            const adjustTextareaHeight = (textarea) => {
+                if (!textarea) return;
+                
+                // Store cursor position
+                const cursorPosition = textarea.selectionStart;
+                
+                // Reset height to auto to get natural height
+                textarea.style.height = 'auto';
+                
+                // Calculate new height based on scroll height
+                const scrollHeight = textarea.scrollHeight;
+                const minHeight = 64; // 2 rows
+                const maxHeight = 200; // Maximum height before scrolling
+                const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
+                
+                // Set the new height
+                textarea.style.height = newHeight + 'px';
+                
+                // Restore cursor position
+                if (cursorPosition !== null) {
+                    textarea.setSelectionRange(cursorPosition, cursorPosition);
+                }
+            };
             
             return (
                 <div className="flex h-screen bg-gray-50">
@@ -565,22 +639,18 @@
                                     <textarea
                                         ref={textareaRef}
                                         value={input}
-                                        onChange={(e) => setInput(e.target.value)}
+                                        onChange={handleInputChange}
                                         onKeyPress={handleKeyPress}
                                         onFocus={handleFocus}
                                         onBlur={handleBlur}
                                         onClick={handleClick}
                                         placeholder="Ask a legal question..."
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        rows="1"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mobile-input"
+                                        rows="2"
                                         style={{
-                                            minHeight: '48px',
-                                            maxHeight: '120px',
+                                            minHeight: '64px',
+                                            maxHeight: '200px',
                                             resize: 'none'
-                                        }}
-                                        onInput={(e) => {
-                                            e.target.style.height = 'auto';
-                                            e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
                                         }}
                                     />
                                 </div>
