@@ -2069,12 +2069,17 @@
 
             // Conversation management functions
             const loadConversations = async () => {
-                if (!isAuthenticated || !user?.email) return;
+                console.log('loadConversations called - isAuthenticated:', isAuthenticated, 'user:', user);
+                if (!isAuthenticated || !user?.email) {
+                    console.log('loadConversations early return - isAuthenticated:', isAuthenticated, 'user.email:', user?.email);
+                    return;
+                }
                 
+                console.log('Loading conversations for user:', user.email);
                 setConversationsLoading(true);
                 try {
                     // For Databricks Apps, include credentials to get authentication headers
-                    const response = await fetch(`/conversations?user_email=${encodeURIComponent(user.email)}`, {
+                    const response = await fetch(`/conversations`, {
                         credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json'
@@ -2083,14 +2088,16 @@
 
                     if (response.ok) {
                         const data = await response.json();
+                        console.log('Conversations response:', data);
                         const conversationsData = data.conversations || [];
+                        console.log('Conversations data:', conversationsData);
                         
                         // Check if there are any empty conversations and clean them up
                         const emptyConversations = conversationsData.filter(conv => conv.messages.length === 0);
                         if (emptyConversations.length > 0) {
                             try {
                                 // For Databricks Apps, include credentials to get authentication headers
-                                await fetch(`/conversations/cleanup?user_email=${encodeURIComponent(user.email)}`, {
+                                await fetch(`/conversations/cleanup`, {
                                     method: 'POST',
                                     credentials: 'include',
                                     headers: {
@@ -2098,7 +2105,7 @@
                                     }
                                 });
                                 // Reload conversations after cleanup
-                                const cleanedResponse = await fetch(`/conversations?user_email=${encodeURIComponent(user.email)}`, {
+                                const cleanedResponse = await fetch(`/conversations`, {
                                     credentials: 'include',
                                     headers: {
                                         'Content-Type': 'application/json'
@@ -2189,7 +2196,6 @@
                         },
                         body: JSON.stringify({ 
                             title: "New Conversation",
-                            user_email: user.email,
                             messages: []
                         })
                     });
@@ -2197,11 +2203,8 @@
                     if (response.ok) {
                         const newConv = await response.json();
                         
-                        // Always generate a unique ID locally to prevent duplicates
-                        const uniqueId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                        
                         const formattedConv = {
-                            id: uniqueId, // Use our unique ID instead of backend ID
+                            id: newConv.id, // Use the backend's conversation ID
                             title: newConv.title,
                             lastMessage: "",
                             messages: [],
@@ -2211,16 +2214,16 @@
                         
                         // Check again before adding to prevent race conditions
                         setConversations(prev => {
-                            const exists = prev.some(conv => conv.id === uniqueId) || conversationIdsRef.current.has(uniqueId);
+                            const exists = prev.some(conv => conv.id === newConv.id) || conversationIdsRef.current.has(newConv.id);
                             if (exists) {
                                 return prev;
                             }
-                            conversationIdsRef.current.add(uniqueId);
+                            conversationIdsRef.current.add(newConv.id);
                             return [formattedConv, ...prev];
                         });
                         
-                        setCurrentConversationId(uniqueId);
-                        return uniqueId; // Return the unique conversation ID
+                        setCurrentConversationId(newConv.id);
+                        return newConv.id; // Return the backend's conversation ID
                     } else {
                         console.error('Failed to create conversation:', response.status);
                         // Create a local fallback conversation with unique ID
@@ -2284,7 +2287,7 @@
                 
                 try {
                     // For Databricks Apps, include credentials to get authentication headers
-                    await fetch(`/conversations/${conversationId}?user_email=${encodeURIComponent(user.email)}`, {
+                    await fetch(`/conversations/${conversationId}`, {
                         method: 'PUT',
                         credentials: 'include',
                         headers: {
@@ -2380,6 +2383,13 @@
                     loadConversations();
                 }
             }, [isAuthenticated]);
+
+            // Also load conversations when user is set
+            useEffect(() => {
+                if (isAuthenticated && user?.email) {
+                    loadConversations();
+                }
+            }, [user]);
 
             // Clean up any conversations with hardcoded or duplicate IDs on mount
             useEffect(() => {
@@ -2635,7 +2645,7 @@
                 
                 try {
                     // For Databricks Apps, include credentials to get authentication headers
-                    const response = await fetch(`/conversations/${conversationId}?user_email=${encodeURIComponent(user.email)}`, {
+                    const response = await fetch(`/conversations/${conversationId}`, {
                         method: 'DELETE',
                         credentials: 'include',
                         headers: {
@@ -2666,7 +2676,7 @@
                 
                 try {
                     // For Databricks Apps, include credentials to get authentication headers
-                    const response = await fetch(`/conversations/${conversationId}?user_email=${encodeURIComponent(user.email)}`, {
+                    const response = await fetch(`/conversations/${conversationId}`, {
                         method: 'PUT',
                         credentials: 'include',
                         headers: {

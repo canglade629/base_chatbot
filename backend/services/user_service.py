@@ -13,9 +13,14 @@ logger = logging.getLogger(__name__)
 async def get_or_create_user(email: str, display_name: str = None, username: str = None) -> Optional[User]:
     """Get existing user or create new user in Lakebase"""
     try:
+        logger.info(f"Attempting to get or create user: {email}")
+        
         async for db in get_async_db():
+            logger.info(f"Got database session for user: {email}")
+            
             # Try to get existing user
             stmt = select(User).where(User.email == email)
+            logger.info(f"Executing query to find user: {email}")
             result = await db.execute(stmt)
             user = result.scalars().first()
             
@@ -28,6 +33,8 @@ async def get_or_create_user(email: str, display_name: str = None, username: str
             else:
                 # Create new user
                 user_id = f"user_{uuid.uuid4().hex[:8]}"
+                logger.info(f"Creating new user with ID: {user_id}")
+                
                 new_user = User(
                     id=user_id,
                     email=email,
@@ -37,13 +44,17 @@ async def get_or_create_user(email: str, display_name: str = None, username: str
                 )
                 
                 db.add(new_user)
+                logger.info(f"Added user to session: {email}")
                 await db.commit()
+                logger.info(f"Committed user creation: {email}")
                 await db.refresh(new_user)
-                logger.info(f"New user created: {email}")
+                logger.info(f"New user created successfully: {email}")
                 return new_user
                 
     except Exception as e:
         logger.error(f"Error getting or creating user {email}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 async def get_user_by_email(email: str) -> Optional[User]:
