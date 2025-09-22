@@ -1,63 +1,30 @@
-# Databricks App Configuration
-# This file defines how the app should run in Databricks Apps
+command: [
+  "python",
+  "main_databricks.py"
+]
 
-# App metadata
-name: "Danone Onesource 2.0 assistant"
-version: "1.0.0"
-description: "AI-powered assistant with Onesource documentation"
-
-# Execution configuration
-execution:
-  # Main entry point - use the Databricks-optimized main file
-  command: "python main_databricks.py"
-  
-  # Environment variables
-  env:
-    # Databricks configuration
-    DATABRICKS_HOST: "https://fe-vm-vdm-serverless-nmmvdg.cloud.databricks.com"
-    DATABRICKS_ENDPOINT: "https://fe-vm-vdm-serverless-nmmvdg.cloud.databricks.com/serving-endpoints/databricks-gpt-oss-20b/invocations"
-    
-    # Database configuration (will use mock mode in Databricks)
-    DATABASE_TYPE: "mock"
-    
-    # Server configuration
-    HOST: "0.0.0.0"
-    PORT: "8000"
-    
-    # Logging
-    LOG_LEVEL: "INFO"
-
-# Resource limits (Databricks Apps constraints)
-resources:
-  # Maximum 2 vCPUs and 6GB memory
-  cpu: 2
-  memory: "6Gi"
-
-# Dependencies
-dependencies:
-  # Use the requirements.txt file for Python packages
-  requirements_file: "requirements-databricks.txt"
-
-# Health check configuration
-health_check:
-  # Health check endpoint
-  endpoint: "/health"
-  # Initial delay before health checks start
-  initial_delay_seconds: 30
-  # How often to check
-  period_seconds: 10
-  # Timeout for each check
-  timeout_seconds: 5
-  # Number of failures before marking as unhealthy
-  failure_threshold: 3
-  # Number of successes before marking as healthy
-  success_threshold: 1
-
-# App settings
-settings:
-  # Enable auto-scaling (if supported)
-  auto_scale: false
-  # Enable logs
-  enable_logs: true
-  # Log retention (in days)
-  log_retention_days: 7
+env:
+  - name: "SERVING_ENDPOINT"
+    value: "ka-1f9efcb2-endpoint"
+  - name: "DATABRICKS_WORKSPACE_URL"
+    value: "https://fe-vm-vdm-serverless-nmmvdg.cloud.databricks.com"
+  - name: "LAKEBASE_HOST"
+    value: "instance-cc424808-7c73-4954-af28-539b992b0587.database.cloud.databricks.com"
+  - name: "LAKEBASE_PORT"
+    value: "5432"
+  - name: "LAKEBASE_DATABASE_NAME"
+    value: "danone-pg-db"
+  - name: "LAKEBASE_USERNAME"
+    value: "christophe.anglade@databricks.com"
+  - name: "LAKEBASE_PASSWORD"
+    value: "your-lakebase-password-here"
+  - name: "DB_POOL_SIZE"
+    value: "5"
+  - name: "DB_MAX_OVERFLOW"
+    value: "10"
+  - name: "DB_COMMAND_TIMEOUT"
+    value: "30"
+  - name: "DB_POOL_TIMEOUT"
+    value: "10"
+  - name: "DB_POOL_RECYCLE_INTERVAL"
+    value: "3600"

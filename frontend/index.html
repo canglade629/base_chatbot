@@ -11,9 +11,6 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Session Management -->
-    <script src="/js/session-manager.js"></script>
-    <script src="/js/session-timeout-warning.js"></script>
-    <script src="/js/session-status-indicator.js"></script>
     <style>
         .typing-dots {
             display: inline-block;
@@ -408,14 +405,6 @@
             padding-left: 1rem !important;
         }
         
-        .markdown-content h2::before {
-            content: "⚖️" !important;
-            position: absolute !important;
-            left: -0.5rem !important;
-            top: 50% !important;
-            transform: translateY(-50%) !important;
-            font-size: 1.25rem !important;
-        }
         
         .markdown-content h3 {
             position: relative !important;
@@ -995,7 +984,7 @@
             --input-border: #6b7280;
             --input-text: #f3f4f6;
             --message-user-bg: #1f2937;
-            --logo-bg: #ffffff;
+            --logo-bg: transparent;
         }
         
         /* Apply theme variables */
@@ -1059,7 +1048,7 @@
         
         .chat-textarea:focus {
             border: none !important;
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+            box-shadow: 0 0 0 2px rgba(209, 213, 219, 0.5) !important;
         }
         
         /* Dark mode shadow enhancement */
@@ -1079,18 +1068,9 @@
         }
         
         
-        /* Logo styling for dark mode */
+        /* Logo styling */
         .logo-container {
-            background-color: var(--logo-bg);
-            border-radius: 8px;
-            padding: 4px;
-        }
-        
-        /* Dark mode specific logo styling */
-        [data-theme="dark"] .logo-container {
-            background-color: var(--logo-bg);
-            border-radius: 8px;
-            padding: 4px;
+            background-color: transparent;
         }
         
         /* Mobile header fixes */
@@ -1205,10 +1185,8 @@
                     );
                 }
                 
-                // Extract disclaimer from text if it exists
-                const disclaimerRegex = /---\s*\n\*This analysis is based on retrieved legal documents and should be verified against primary sources\.\*/;
-                const hasDisclaimer = disclaimerRegex.test(text);
-                const textWithoutDisclaimer = text.replace(disclaimerRegex, '').trim();
+                // Use the text as-is without disclaimer processing
+                const textWithoutDisclaimer = text;
                 
                 try {
                     // Configure marked for legal document formatting
@@ -1254,13 +1232,6 @@
                                     style={style ? { color: style.split(':')[1]?.trim() } : undefined}
                                     dangerouslySetInnerHTML={{ __html: html }}
                                 />
-                                {hasDisclaimer && (
-                                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic text-center">
-                                            This analysis is based on retrieved legal documents and should be verified against primary sources.
-                                        </p>
-                                    </div>
-                                )}
                                 <div className="flex justify-end mt-3">
                                     <button
                                         onClick={() => copyToClipboard(text)}
@@ -1279,13 +1250,6 @@
                         <div className="flex justify-start mb-6 sm:mb-8">
                             <div className="max-w-xs sm:max-w-2xl lg:max-w-3xl w-full">
                                 <p className="text-sm leading-tight break-words">{textWithoutDisclaimer}</p>
-                                {hasDisclaimer && (
-                                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic text-center">
-                                            This analysis is based on retrieved legal documents and should be verified against primary sources.
-                                        </p>
-                                    </div>
-                                )}
                                 <div className="flex justify-end mt-3">
                                     <button
                                         onClick={() => copyToClipboard(text)}
@@ -1359,18 +1323,13 @@
 
 
             const handlePaste = (e) => {
-                console.log('Paste event triggered');
-                console.log('Current message state before paste:', message);
-                console.log('Textarea value before paste:', textareaRef.current?.value);
                 
                 // Get the pasted text from clipboard
                 const pastedText = (e.clipboardData || window.clipboardData).getData('text');
-                console.log('Pasted text:', pastedText);
                 
                 if (pastedText) {
                     // Manually update the message state with the pasted text
                     const newMessage = message + pastedText;
-                    console.log('New message after paste:', newMessage);
                     setMessage(newMessage);
                     
                     // Trigger scroll check
@@ -1595,7 +1554,7 @@
                                         onBlur={handleBlur}
                                         onClick={handleClick}
                                         placeholder={isMobile ? "Ask about OneSource 2.0..." : "Search OneSource 2.0 documentation or ask questions..."}
-                                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${isKeyboardOpen ? 'keyboard-open' : ''}`}
+                                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${isKeyboardOpen ? 'keyboard-open' : ''}`}
                                         rows="2"
                                         disabled={isLoading}
                                         style={{ 
@@ -1649,7 +1608,7 @@
                                     onBlur={handleBlur}
                                     onClick={handleClick}
                                     placeholder={isMobile ? "Ask about OneSource 2.0..." : "Search OneSource 2.0 documentation or ask questions..."}
-                                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${isKeyboardOpen ? 'keyboard-open' : ''}`}
+                                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm sm:text-base overflow-y-auto chat-textarea mobile-input ${isKeyboardOpen ? 'keyboard-open' : ''}`}
                                     rows="2"
                                     disabled={isLoading}
                                     style={{ 
@@ -1781,13 +1740,15 @@
                         <div className="p-4 border-b border-gray-700">
                             <div className="flex items-center justify-between">
                                 {!isCollapsed && (
-                                    <button
-                                        onClick={onNewConversation}
-                                        className="flex items-center space-x-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                                    >
-                                        <i className="fas fa-plus"></i>
-                                        <span className="hidden sm:inline">New chat</span>
-                                    </button>
+                                    <div className="flex items-center space-x-2">
+                                        <button
+                                            onClick={onNewConversation}
+                                            className="flex items-center space-x-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                                        >
+                                            <i className="fas fa-plus"></i>
+                                            <span className="hidden sm:inline">New chat</span>
+                                        </button>
+                                    </div>
                                 )}
                                 <button
                                     onClick={() => setIsCollapsed(!isCollapsed)}
@@ -1963,13 +1924,50 @@
             const [renameValue, setRenameValue] = useState('');
             const [renameConversationId, setRenameConversationId] = useState(null);
             const messagesEndRef = useRef(null);
+            const creatingConversationRef = useRef(false);
+            const conversationIdsRef = useRef(new Set());
 
             const currentConversation = conversations.find(c => c.id === currentConversationId);
             const messages = currentConversation?.messages || [];
             
             // Debug logging
-            console.log('Current conversation:', currentConversation);
-            console.log('Messages:', messages);
+            
+            // Check for and remove any hardcoded conversations immediately
+            const hasHardcodedConversations = conversations.some(conv => conv.id === 'conv_123' || conv.id.startsWith('conv_123'));
+            if (hasHardcodedConversations) {
+                setConversations(prev => {
+                    const cleaned = prev.filter(conv => {
+                        if (conv.id === 'conv_123' || conv.id.startsWith('conv_123')) {
+                            conversationIdsRef.current.delete(conv.id);
+                            return false;
+                        }
+                        return true;
+                    });
+                    return cleaned;
+                });
+            }
+            
+            // Also check for any duplicate IDs and remove them
+            const duplicateIds = conversations.reduce((acc, conv) => {
+                acc[conv.id] = (acc[conv.id] || 0) + 1;
+                return acc;
+            }, {});
+            
+            const hasDuplicates = Object.values(duplicateIds).some(count => count > 1);
+            if (hasDuplicates) {
+                setConversations(prev => {
+                    const seen = new Set();
+                    const cleaned = prev.filter(conv => {
+                        if (seen.has(conv.id)) {
+                            conversationIdsRef.current.delete(conv.id);
+                            return false;
+                        }
+                        seen.add(conv.id);
+                        return true;
+                    });
+                    return cleaned;
+                });
+            }
 
             // Utility functions
             const formatTimestamp = (timestamp) => {
@@ -2000,13 +1998,13 @@
                 }
             };
 
-            // Authentication functions for Databricks Apps
+            // Simple platform authentication - no complex auth logic needed
             const checkAuth = async () => {
                 try {
-                    // In Databricks Apps, we're always authenticated
-                    // Just fetch user info from the backend
+                    
                     const response = await fetch('/user/info', {
                         method: 'GET',
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json'
                         }
@@ -2014,42 +2012,41 @@
                     
                     if (response.ok) {
                         const data = await response.json();
-                        console.log('User info received:', data.user);
                         setUserInfo(data.user);
                         setUser(data.user);
                         setIsAuthenticated(true);
                     } else {
                         console.error('Failed to fetch user info:', response.status);
-                        // Fallback user info for development
+                        // Use fallback user info
                         const fallbackUser = {
                             uid: "databricks_user",
-                            email: "databricks.user@company.com",
+                            email: "user@databricks.com",
                             display_name: "Databricks User",
                             username: "databricks_user",
                             initials: "DU",
                             groups: [],
                             roles: [],
-                            scopes: []
+                            scopes: ["serving.serving-endpoints"],
+                            authenticated: true
                         };
-                        console.log('Using fallback user:', fallbackUser);
                         setUserInfo(fallbackUser);
                         setUser(fallbackUser);
                         setIsAuthenticated(true);
                     }
                 } catch (error) {
                     console.error('Auth check failed:', error);
-                    // Fallback user info for development
+                    // Use fallback user info
                     const fallbackUser = {
                         uid: "databricks_user",
-                        email: "databricks.user@company.com",
+                        email: "user@databricks.com",
                         display_name: "Databricks User",
                         username: "databricks_user",
                         initials: "DU",
                         groups: [],
                         roles: [],
-                        scopes: []
+                        scopes: ["serving.serving-endpoints"],
+                        authenticated: true
                     };
-                    console.log('Using fallback user due to error:', fallbackUser);
                     setUserInfo(fallbackUser);
                     setUser(fallbackUser);
                     setIsAuthenticated(true);
@@ -2058,39 +2055,9 @@
                 }
             };
 
-            // No refresh token or logout needed for Databricks Apps
+            // Simple platform authentication - logout handled by platform
             const logout = () => {
-                // In Databricks Apps, logout is handled by the platform
-                console.log('Logout handled by Databricks Apps platform');
-            };
-
-            // Test function for development mode
-            const testWithMockToken = async () => {
-                const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIiwiZW1haWwiOiJ0ZXN0QGRhdGFicmlja3MuY29tIiwibmFtZSI6IlRlc3QgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6InRlc3R1c2VyIiwiZ3JvdXBzIjpbImFkbWlucyIsImRldmVsb3BlcnMiXSwicm9sZXMiOlsiYWRtaW4iXSwic2NvcGUiOiJpYW0uYWNjZXNzLWNvbnRyb2w6cmVhZCBpYW0uY3VycmVudC11c2VyOnJlYWQiLCJpYXQiOjE2NDA5OTUyMDAsImV4cCI6MTY0MDk5ODgwMCwiaXNzIjoiaHR0cHM6Ly9kYXRhYnJpY2tzLmNvbSIsImF1ZCI6ImRhdGFicmlja3MifQ.test';
-                
-                try {
-                    const response = await fetch('/user/info', {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-forwarded-access-token': mockToken
-                        }
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        console.log('Mock token user info received:', data.user);
-                        setUserInfo(data.user);
-                        setUser(data.user);
-                        alert('Mock token test successful! User: ' + data.user.email);
-                    } else {
-                        console.error('Mock token test failed:', response.status);
-                        alert('Mock token test failed: ' + response.status);
-                    }
-                } catch (error) {
-                    console.error('Mock token test error:', error);
-                    alert('Mock token test error: ' + error.message);
-                }
+                // Platform handles logout
             };
 
             const toggleDarkMode = () => {
@@ -2102,31 +2069,45 @@
 
             // Conversation management functions
             const loadConversations = async () => {
-                if (!isAuthenticated) return;
+                if (!isAuthenticated || !user?.email) return;
                 
                 setConversationsLoading(true);
                 try {
-                    // For Databricks Apps, no authentication headers needed
-                    const response = await fetch('/conversations', {
+                    // For Databricks Apps, include credentials to get authentication headers
+                    const response = await fetch(`/conversations?user_email=${encodeURIComponent(user.email)}`, {
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json'
                         }
                     });
 
                     if (response.ok) {
-                        const conversationsData = await response.json();
+                        const data = await response.json();
+                        const conversationsData = data.conversations || [];
                         
                         // Check if there are any empty conversations and clean them up
                         const emptyConversations = conversationsData.filter(conv => conv.messages.length === 0);
                         if (emptyConversations.length > 0) {
                             try {
-                                // For Databricks Apps, no authentication headers needed
-                                await fetch('/conversations/cleanup', {
+                                // For Databricks Apps, include credentials to get authentication headers
+                                await fetch(`/conversations/cleanup?user_email=${encodeURIComponent(user.email)}`, {
                                     method: 'POST',
+                                    credentials: 'include',
                                     headers: {
                                         'Content-Type': 'application/json'
                                     }
                                 });
+                                // Reload conversations after cleanup
+                                const cleanedResponse = await fetch(`/conversations?user_email=${encodeURIComponent(user.email)}`, {
+                                    credentials: 'include',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+                                const cleanedData = await cleanedResponse.json();
+                                const cleanedConversationsData = cleanedData.conversations || [];
+                                setConversations(cleanedConversationsData);
+                                return;
                             } catch (error) {
                                 console.error('Error cleaning up empty conversations:', error);
                             }
@@ -2146,8 +2127,18 @@
                             created_at: conv.created_at || new Date().toISOString()
                         }));
                         
+                        // Remove duplicates by ID and populate the Set
+                        conversationIdsRef.current.clear();
+                        const uniqueConversations = formattedConversations.reduce((acc, conv) => {
+                            if (!acc.find(c => c.id === conv.id) && !conversationIdsRef.current.has(conv.id)) {
+                                conversationIdsRef.current.add(conv.id);
+                                acc.push(conv);
+                            }
+                            return acc;
+                        }, []);
+                        
                         // Sort conversations by updated_at (latest first)
-                        formattedConversations.sort((a, b) => {
+                        uniqueConversations.sort((a, b) => {
                             const dateA = new Date(a.updated_at);
                             const dateB = new Date(b.updated_at);
                             
@@ -2158,61 +2149,144 @@
                             
                             return dateB - dateA;
                         });
-                        setConversations(formattedConversations);
+                        setConversations(uniqueConversations);
                         
                         // Don't set any conversation as current by default - show new conversation UI
                         // A conversation will be created when the user sends their first message
+                    } else {
+                        console.error('Failed to load conversations:', response.status);
+                        setConversations([]);
                     }
                 } catch (error) {
                     console.error('Error loading conversations:', error);
-                    // Create a new conversation if loading fails
-                    await createNewConversation();
+                    // Don't create a new conversation if loading fails - just set empty array
+                    setConversations([]);
                 } finally {
                     setConversationsLoading(false);
                 }
             };
 
             const createNewConversation = async () => {
+                if (!user?.email) {
+                    console.error('No user email available for conversation creation');
+                    return null;
+                }
+                
+                // Prevent multiple simultaneous conversation creation
+                if (creatingConversationRef.current) {
+                    return null;
+                }
+                
+                creatingConversationRef.current = true;
+                
                 try {
-                    // For Databricks Apps, no authentication headers needed
+                    // For Databricks Apps, include credentials to get authentication headers
                     const response = await fetch('/conversations', {
                         method: 'POST',
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify({ title: "New Conversation" })
+                        body: JSON.stringify({ 
+                            title: "New Conversation",
+                            user_email: user.email,
+                            messages: []
+                        })
                     });
 
                     if (response.ok) {
                         const newConv = await response.json();
+                        
+                        // Always generate a unique ID locally to prevent duplicates
+                        const uniqueId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                        
                         const formattedConv = {
-                            id: newConv.id,
+                            id: uniqueId, // Use our unique ID instead of backend ID
                             title: newConv.title,
                             lastMessage: "",
                             messages: [],
                             updated_at: newConv.updated_at || newConv.created_at || new Date().toISOString(),
                             created_at: newConv.created_at || new Date().toISOString()
                         };
-                        setConversations(prev => [formattedConv, ...prev]);
-                        setCurrentConversationId(newConv.id);
-                        return newConv.id; // Return the conversation ID
+                        
+                        // Check again before adding to prevent race conditions
+                        setConversations(prev => {
+                            const exists = prev.some(conv => conv.id === uniqueId) || conversationIdsRef.current.has(uniqueId);
+                            if (exists) {
+                                return prev;
+                            }
+                            conversationIdsRef.current.add(uniqueId);
+                            return [formattedConv, ...prev];
+                        });
+                        
+                        setCurrentConversationId(uniqueId);
+                        return uniqueId; // Return the unique conversation ID
+                    } else {
+                        console.error('Failed to create conversation:', response.status);
+                        // Create a local fallback conversation with unique ID
+                        const fallbackId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                        const fallbackConv = {
+                            id: fallbackId,
+                            title: "New Conversation",
+                            lastMessage: "",
+                            messages: [],
+                            updated_at: new Date().toISOString(),
+                            created_at: new Date().toISOString()
+                        };
+                        
+                        setConversations(prev => {
+                            const exists = prev.some(conv => conv.id === fallbackId) || conversationIdsRef.current.has(fallbackId);
+                            if (exists) {
+                                return prev;
+                            }
+                            conversationIdsRef.current.add(fallbackId);
+                            return [fallbackConv, ...prev];
+                        });
+                        
+                        setCurrentConversationId(fallbackId);
+                        return fallbackId;
                     }
                 } catch (error) {
                     console.error('Error creating conversation:', error);
+                    // Create a local fallback conversation with unique ID
+                    const fallbackId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    const fallbackConv = {
+                        id: fallbackId,
+                        title: "New Conversation",
+                        lastMessage: "",
+                        messages: [],
+                        updated_at: new Date().toISOString(),
+                        created_at: new Date().toISOString()
+                    };
+                    
+                    setConversations(prev => {
+                        const exists = prev.some(conv => conv.id === fallbackId) || conversationIdsRef.current.has(fallbackId);
+                        if (exists) {
+                            console.log('Fallback conversation already exists, not adding duplicate');
+                            return prev;
+                        }
+                        conversationIdsRef.current.add(fallbackId);
+                        return [fallbackConv, ...prev];
+                    });
+                    
+                    setCurrentConversationId(fallbackId);
+                    return fallbackId;
+                } finally {
+                    creatingConversationRef.current = false;
                 }
-                return null;
             };
 
             const saveConversation = async (conversationId, messages) => {
                 // Only save conversations that have messages
-                if (messages.length === 0) {
+                if (messages.length === 0 || !user?.email) {
                     return;
                 }
                 
                 try {
-                    // For Databricks Apps, no authentication headers needed
-                    await fetch(`/conversations/${conversationId}`, {
+                    // For Databricks Apps, include credentials to get authentication headers
+                    await fetch(`/conversations/${conversationId}?user_email=${encodeURIComponent(user.email)}`, {
                         method: 'PUT',
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json'
                         },
@@ -2307,6 +2381,32 @@
                 }
             }, [isAuthenticated]);
 
+            // Clean up any conversations with hardcoded or duplicate IDs on mount
+            useEffect(() => {
+                const cleanupHardcodedConversations = () => {
+                    setConversations(prev => {
+                        const cleanedConversations = prev.filter(conv => {
+                            // Remove conversations with hardcoded IDs like conv_123
+                            if (conv.id === 'conv_123' || conv.id.startsWith('conv_123')) {
+                                conversationIdsRef.current.delete(conv.id);
+                                return false;
+                            }
+                            return true;
+                        });
+                        
+                        if (cleanedConversations.length !== prev.length) {
+                        } else {
+                        }
+                        return cleanedConversations;
+                    });
+                };
+                
+                // Run cleanup after a short delay to ensure conversations are loaded
+                const timer = setTimeout(cleanupHardcodedConversations, 1000);
+                return () => clearTimeout(timer);
+            }, []);
+
+
             useEffect(() => {
                 scrollToBottom();
             }, [messages]);
@@ -2350,7 +2450,6 @@
             }, [currentConversationId, isMobile, currentConversation, hasUserInteracted]);
 
             const sendMessage = async (messageText) => {
-                console.log('Sending message:', messageText);
                 
                 // No authentication check needed for Databricks Apps
                 
@@ -2371,14 +2470,12 @@
                     text: messageText,
                     isUser: true
                 };
-                console.log('User message created:', userMessage);
 
                 // Immediately show loading state and user message
                 setIsLoading(true);
 
                 // Update current conversation with user message
                 setConversations(prevConversations => {
-                    console.log('Previous conversations:', prevConversations);
                     const updatedConversations = prevConversations.map(conv =>
                         conv.id === conversationId
                             ? { ...conv, messages: [...conv.messages, userMessage], lastMessage: messageText }
@@ -2395,9 +2492,10 @@
                         // Update title in Firestore asynchronously
                         (async () => {
                             try {
-                                // For Databricks Apps, no authentication headers needed
+                                // For Databricks Apps, include credentials to get authentication headers
                                 await fetch(`/conversations/${conversationId}`, {
                                     method: 'PUT',
+                                    credentials: 'include',
                                     headers: {
                                         'Content-Type': 'application/json'
                                     },
@@ -2416,14 +2514,14 @@
                         }
                     })();
                     
-                    console.log('Updated conversations:', updatedConversations);
                     return updatedConversations;
                 });
 
                 try {
-                    // For Databricks Apps, no authentication headers needed
+                    // For Databricks Apps, include credentials to get authentication headers
                     const response = await fetch('/chat', {
                         method: 'POST',
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json'
                         },
@@ -2437,7 +2535,7 @@
                                 id: Date.now() + 1,
                                 text: "⏳ The AI is starting up. Please wait about 30 seconds and try again.",
                                 isUser: false,
-                                style: "color: rgb(255, 133, 131);"
+                                style: "color: rgb(255, 133, 131)"
                             };
                             
                             setConversations(prev => prev.map(conv => 
@@ -2494,7 +2592,7 @@
                             : "❌ Sorry, I encountered an error. Please try again.",
                         isUser: false,
                         style: (error.message.includes('timeout') || error.message.includes('Timeout') || error.name === 'TimeoutError') 
-                            ? "color: rgb(255, 133, 131);" 
+                            ? "color: rgb(255, 133, 131)" 
                             : undefined
                     };
                     
@@ -2527,26 +2625,27 @@
                 // Check if current conversation is empty or not started
                 if (currentConversationId && currentConversation && currentConversation.messages.length === 0) {
                     // Don't create a new conversation if current one is empty or not started
-                    console.log('Current conversation is empty or not started, not creating new one');
                     return;
                 }
                 await createNewConversation();
             };
 
             const deleteConversation = async (conversationId) => {
-                if (!conversationId) return;
+                if (!conversationId || !user?.email) return;
                 
                 try {
-                    // For Databricks Apps, no authentication headers needed
-                    const response = await fetch(`/conversations/${conversationId}`, {
+                    // For Databricks Apps, include credentials to get authentication headers
+                    const response = await fetch(`/conversations/${conversationId}?user_email=${encodeURIComponent(user.email)}`, {
                         method: 'DELETE',
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json'
                         }
                     });
 
                     if (response.ok) {
-                        // Remove conversation from local state
+                        // Remove conversation from local state and Set
+                        conversationIdsRef.current.delete(conversationId);
                         setConversations(prev => prev.filter(conv => conv.id !== conversationId));
                         
                         // If this was the current conversation, clear it
@@ -2561,13 +2660,15 @@
                 }
             };
 
+
             const renameConversation = async (conversationId, newTitle) => {
-                if (!conversationId || !newTitle.trim()) return;
+                if (!conversationId || !newTitle.trim() || !user?.email) return;
                 
                 try {
-                    // For Databricks Apps, no authentication headers needed
-                    const response = await fetch(`/conversations/${conversationId}`, {
+                    // For Databricks Apps, include credentials to get authentication headers
+                    const response = await fetch(`/conversations/${conversationId}?user_email=${encodeURIComponent(user.email)}`, {
                         method: 'PUT',
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json'
                         },

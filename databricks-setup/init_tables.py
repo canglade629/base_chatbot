@@ -2,8 +2,13 @@
 """
 Lakebase Schema and Tables Initialization Script
 
-This script creates the schema and necessary tables in the Lakebase PostgreSQL database.
+This script creates the superuser role, schema, and necessary tables in the Lakebase PostgreSQL database.
 It can be run independently after the main setup is complete.
+
+Features:
+- Creates superuser role for the app's service principal
+- Creates database schema and tables
+- Verifies table creation and accessibility
 
 Usage:
     python init_tables.py --environment <env_name>
@@ -15,6 +20,13 @@ import json
 import sys
 from pathlib import Path
 from config_manager import ConfigManager, EnvironmentConfig
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.database import (
+    DatabaseInstanceRole,
+    DatabaseInstanceRoleIdentityType,
+    DatabaseInstanceRoleMembershipRole,
+    DatabaseInstanceRoleAttributes
+)
 
 
 class LakebaseTableInitializer:
@@ -31,15 +43,22 @@ class LakebaseTableInitializer:
     def run_cli_command(self, command, description):
         """Run a CLI command and return the result"""
         import subprocess
+        import os
         
         print(f"🔄 {description}...")
+        
+        # Set SSL environment variables for psql
+        env = os.environ.copy()
+        env['PGSSLMODE'] = 'require'
+        env['PGSSLROOTCERT'] = ''
         
         try:
             result = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=env
             )
             return {
                 "success": True,
@@ -59,13 +78,59 @@ class LakebaseTableInitializer:
                 "error": str(e)
             }
     
+    def create_superuser_role(self) -> bool:
+        """Create superuser role for the app's service principal"""
+        print(f"🔧 Creating superuser role for Lakebase database...")
+        
+        try:
+            # Initialize Databricks SDK client
+            workspace_client = WorkspaceClient()
+            
+            # Get the current user (service principal) name
+            current_user = workspace_client.current_user.me()
+            service_principal_name = current_user.user_name
+            
+            print(f"📋 Service principal: {service_principal_name}")
+            
+            # Create superuser role
+            superuser_role = DatabaseInstanceRole(
+                name=service_principal_name,
+                identity_type=DatabaseInstanceRoleIdentityType.USER,
+                membership_role=DatabaseInstanceRoleMembershipRole.DATABRICKS_SUPERUSER,
+                attributes=DatabaseInstanceRoleAttributes(
+                    bypassrls=True, 
+                    createdb=True, 
+                    createrole=True
+                ),
+            )
+            
+            # Create the role in the database instance
+            workspace_client.database.create_database_instance_role(
+                instance_name=self.config.lakebase_database_name,
+                database_instance_role=superuser_role
+            )
+            
+            print(f"✅ Superuser role created successfully for {service_principal_name}")
+            self.results["steps_completed"].append("superuser_role_created")
+            return True
+            
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                print(f"✅ Superuser role already exists for {service_principal_name}")
+                self.results["steps_completed"].append("superuser_role_exists")
+                return True
+            else:
+                print(f"❌ Failed to create superuser role: {e}")
+                self.results["errors"].append(f"Superuser role creation failed: {e}")
+                return False
+
     def check_lakebase_connection(self) -> bool:
         """Check if Lakebase database instance is accessible"""
         print(f"🔍 Checking Lakebase database connection...")
         
         # Test connection by listing databases
         test_result = self.run_cli_command([
-            "databricks", "psql", "-p", "dbxworkspace", self.config.lakebase_database_name, "--",
+            "databricks", "psql", "-p", self.config.databricks_profile, self.config.lakebase_database_name, "--",
             "-d", self.config.lakebase_database_name,
             "-c", "SELECT current_database();"
         ], "Test Lakebase connection")
@@ -83,92 +148,63 @@ class LakebaseTableInitializer:
         """Create the Lakebase schema"""
         print(f"🔄 Create Lakebase schema...")
         
+        # Use the public schema instead of creating a custom schema
+        # This matches the app's configuration which uses the default schema
         schema_result = self.run_cli_command([
-            "databricks", "psql", "-p", "dbxworkspace", self.config.lakebase_database_name, "--",
+            "databricks", "psql", "-p", self.config.databricks_profile, self.config.lakebase_database_name, "--",
             "-d", self.config.lakebase_database_name,
-            "-c", f"CREATE SCHEMA IF NOT EXISTS {self.config.lakebase_schema};"
-        ], "Create Lakebase schema")
+            "-c", "SELECT current_schema();"
+        ], "Check current schema")
         
         if schema_result["success"]:
-            print(f"✅ Successfully created schema '{self.config.lakebase_schema}'")
-            self.results["steps_completed"].append("schema_created")
+            print(f"✅ Using public schema (default)")
+            self.results["steps_completed"].append("schema_verified")
             return True
         else:
-            # Check if schema already exists
-            if "already exists" in schema_result.get("error", "").lower():
-                print(f"✅ Schema '{self.config.lakebase_schema}' already exists")
-                self.results["steps_completed"].append("schema_exists")
-                return True
-            else:
-                print(f"❌ Schema creation failed: {schema_result['error']}")
-                self.results["errors"].append(f"Schema creation failed: {schema_result['error']}")
-                return False
+            print(f"❌ Schema check failed: {schema_result['error']}")
+            self.results["errors"].append(f"Schema check failed: {schema_result['error']}")
+            return False
     
     def create_tables(self) -> bool:
         """Create all necessary tables in the Lakebase schema"""
-        print(f"📋 Creating tables in Lakebase schema '{self.config.lakebase_schema}'...")
+        print(f"📋 Creating tables in public schema...")
         
-        # Define table creation SQL
+        # Define table creation SQL - Updated to match app's SQLAlchemy models
+        # Using public schema (default) instead of custom schema
         tables_sql = [
-            f"""
-            CREATE TABLE IF NOT EXISTS {self.config.lakebase_schema}.users (
-                uid VARCHAR(255) PRIMARY KEY,
+            """
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id VARCHAR(255) PRIMARY KEY,
                 email VARCHAR(255) NOT NULL UNIQUE,
                 display_name VARCHAR(255),
-                password_hash VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                username VARCHAR(255),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP WITH TIME ZONE
             );
             """,
-            f"""
-            CREATE TABLE IF NOT EXISTS {self.config.lakebase_schema}.conversations (
+            """
+            CREATE TABLE IF NOT EXISTS conversations (
                 id VARCHAR(255) PRIMARY KEY,
+                title VARCHAR(500) NOT NULL,
                 user_id VARCHAR(255) NOT NULL,
-                title VARCHAR(500),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES {self.config.lakebase_schema}.users(uid)
+                messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             );
             """,
-            f"""
-            CREATE TABLE IF NOT EXISTS {self.config.lakebase_schema}.messages (
-                id VARCHAR(255) PRIMARY KEY,
-                conversation_id VARCHAR(255) NOT NULL,
-                role VARCHAR(50) NOT NULL,
-                content TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (conversation_id) REFERENCES {self.config.lakebase_schema}.conversations(id)
-            );
+            """
+            CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
             """,
-            f"""
-            CREATE TABLE IF NOT EXISTS {self.config.lakebase_schema}.user_sessions (
-                id VARCHAR(255) PRIMARY KEY,
-                user_id VARCHAR(255) NOT NULL,
-                session_token VARCHAR(500) NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES {self.config.lakebase_schema}.users(uid)
-            );
+            """
+            CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
             """,
-            f"""
-            CREATE TABLE IF NOT EXISTS {self.config.lakebase_schema}.conversation_analytics (
-                id VARCHAR(255) PRIMARY KEY,
-                conversation_id VARCHAR(255) NOT NULL,
-                message_count INTEGER DEFAULT 0,
-                total_tokens INTEGER DEFAULT 0,
-                avg_response_time FLOAT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (conversation_id) REFERENCES {self.config.lakebase_schema}.conversations(id)
-            );
-            """,
-            f"""
-            CREATE TABLE IF NOT EXISTS {self.config.lakebase_schema}.system_config (
-                key VARCHAR(255) PRIMARY KEY,
-                value TEXT NOT NULL,
-                description TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
+            """
+            CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at DESC);
             """
         ]
         
@@ -176,7 +212,7 @@ class LakebaseTableInitializer:
         success_count = 0
         for i, sql in enumerate(tables_sql, 1):
             result = self.run_cli_command([
-                "databricks", "psql", "-p", "dbxworkspace", self.config.lakebase_database_name, "--",
+                "databricks", "psql", "-p", self.config.databricks_profile, self.config.lakebase_database_name, "--",
                 "-d", self.config.lakebase_database_name,
                 "-c", sql.strip()
             ], f"Create table {i}/{len(tables_sql)}")
@@ -204,18 +240,18 @@ class LakebaseTableInitializer:
     
     def verify_tables(self) -> bool:
         """Verify that all tables exist and are accessible"""
-        print(f"🔍 Verifying tables in schema '{self.config.lakebase_schema}'...")
+        print(f"🔍 Verifying tables in public schema...")
         
-        # List tables in the schema
+        # List tables in the public schema
         verify_result = self.run_cli_command([
-            "databricks", "psql", "-p", "dbxworkspace", self.config.lakebase_database_name, "--",
+            "databricks", "psql", "-p", self.config.databricks_profile, self.config.lakebase_database_name, "--",
             "-d", self.config.lakebase_database_name,
-            "-c", f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{self.config.lakebase_schema}';"
+            "-c", "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users', 'conversations');"
         ], "Verify tables exist")
         
         if verify_result["success"]:
             print(f"✅ Tables verification successful")
-            print(f"📋 Tables in schema '{self.config.lakebase_schema}':")
+            print(f"📋 Tables in public schema:")
             print(verify_result["output"])
             self.results["steps_completed"].append("tables_verified")
             return True
@@ -229,6 +265,7 @@ class LakebaseTableInitializer:
         print("🚀 Starting Lakebase schema and tables initialization")
         print(f"Environment: {self.config.name}")
         print(f"Base Name: {self.config.base_name}")
+        print(f"Databricks Profile: {self.config.databricks_profile}")
         print(f"Lakebase Database: {self.config.lakebase_database_name}")
         print(f"Lakebase Schema: {self.config.lakebase_schema}")
         print("=" * 60)
@@ -243,20 +280,27 @@ class LakebaseTableInitializer:
             print("❌ Cannot proceed without Lakebase connection")
             return False
         
-        # Step 2: Create schema
-        print("\n📋 STEP 2: Creating Schema")
+        # Step 2: Create superuser role
+        print("\n📋 STEP 2: Creating Superuser Role")
+        print("-" * 40)
+        if not self.create_superuser_role():
+            success = False
+            print("⚠️ Superuser role creation failed, but continuing with table creation")
+        
+        # Step 3: Verify schema
+        print("\n📋 STEP 3: Verifying Schema")
         print("-" * 40)
         if not self.create_schema():
             success = False
         
-        # Step 3: Create tables
-        print("\n📋 STEP 3: Creating Tables")
+        # Step 4: Create tables
+        print("\n📋 STEP 4: Creating Tables")
         print("-" * 40)
         if not self.create_tables():
             success = False
         
-        # Step 4: Verify tables
-        print("\n📋 STEP 4: Verifying Tables")
+        # Step 5: Verify tables
+        print("\n📋 STEP 5: Verifying Tables")
         print("-" * 40)
         if not self.verify_tables():
             success = False
@@ -267,6 +311,7 @@ class LakebaseTableInitializer:
         print("=" * 60)
         print(f"Environment: {self.config.name}")
         print(f"Base Name: {self.config.base_name}")
+        print(f"Databricks Profile: {self.config.databricks_profile}")
         print(f"Lakebase Database: {self.config.lakebase_database_name}")
         print(f"Lakebase Schema: {self.config.lakebase_schema}")
         

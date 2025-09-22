@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-ICC Legal Research Assistant - Databricks Apps Entry Point
+Danone Onesource 2.0 Assistant - Databricks Apps Entry Point
 
-This is the main entry point for the ICC Legal Research Assistant application
+This is the main entry point for the Danone Onesource 2.0 Assistant application
 optimized for Databricks Apps deployment.
 """
 
@@ -22,7 +22,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
 
 def check_environment():
     """Check if all required environment variables are set"""
-    required_vars = ['DATABRICKS_TOKEN']
+    required_vars = ['SERVING_ENDPOINT']
     missing_vars = []
     
     for var in required_vars:
@@ -30,10 +30,14 @@ def check_environment():
             missing_vars.append(var)
     
     if missing_vars:
-        logger.warning(f"Missing environment variables: {missing_vars}")
-        logger.warning("Some features may not work properly")
+        logger.error(f"Missing required environment variables: {missing_vars}")
+        logger.error("App cannot start without these variables")
+        logger.error("Please ensure SERVING_ENDPOINT is set in app.yaml")
+        return False
     else:
-        logger.info("All required environment variables are set")
+        logger.info(f"All required environment variables are set")
+        logger.info(f"SERVING_ENDPOINT: {os.environ.get('SERVING_ENDPOINT')}")
+        return True
 
 def create_app():
     """Create and configure the FastAPI app with error handling"""
@@ -54,13 +58,15 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     host = os.environ.get("HOST", "0.0.0.0")
     
-    logger.info(f"🚀 Starting ICC Legal Research Assistant on {host}:{port}")
+    logger.info(f"🚀 Starting Danone Onesource 2.0 Assistant on {host}:{port}")
     logger.info(f"📁 Working directory: {os.getcwd()}")
     logger.info(f"🐍 Python path: {sys.path}")
     logger.info(f"🌐 Environment: Databricks Apps")
     
     # Check environment
-    check_environment()
+    if not check_environment():
+        logger.error("❌ Environment check failed, exiting")
+        sys.exit(1)
     
     # Create app with error handling
     try:

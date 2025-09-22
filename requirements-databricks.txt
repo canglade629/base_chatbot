@@ -8,6 +8,12 @@ uvicorn[standard]==0.24.0
 # HTTP client for API calls
 httpx==0.25.2
 
+# MLflow for serving endpoint access
+mlflow==2.8.1
+
+# Databricks SDK for platform authentication
+databricks-sdk
+
 # Configuration and validation
 python-dotenv==1.0.0
 pydantic[email]==2.5.0
@@ -16,10 +22,13 @@ pydantic[email]==2.5.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
-# Note: PostgreSQL dependencies removed for Databricks Apps
-# The app will use mock mode for authentication in Databricks environment
-# asyncpg==0.29.0
-# psycopg2-binary==2.9.9
+# Lakebase PostgreSQL dependencies
+asyncpg==0.29.0
+sqlalchemy==2.0.23
+greenlet==3.2.4
 
 # Additional dependencies that might be needed
 email-validator==2.3.0
+
+# OpenAI client for serving endpoint access
+openai>=1.12.0

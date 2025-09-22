@@ -1,6 +1,46 @@
-# Base Chatbot
+# OneSource 2.0 Chatbot
 
-A comprehensive chatbot application with FastAPI backend and modern web frontend, featuring user authentication, conversation management, and AI-powered capabilities with Databricks integration.
+A production-ready chatbot application for Danone's OneSource 2.0 platform, featuring FastAPI backend, modern web frontend, and Databricks integration for AI-powered assistance.
+
+## ✨ Key Features
+- 🤖 **AI-Powered**: Uses Databricks agent endpoints for intelligent responses
+- 🧹 **Smart Formatting**: Automatically cleans reference markers and formats content
+- 📱 **Modern UI**: Clean, responsive interface with OneSource branding
+- 🔒 **Secure**: Databricks SDK with automatic authentication
+- ⚡ **Fast**: Optimized for production with timeout protection
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Databricks workspace with serving endpoint access
+- Python 3.11+
+- Databricks CLI configured
+
+### Deployment
+```bash
+# Easy deployment using the provided script
+./deploy.sh [profile]
+
+# Or manual deployment
+databricks apps deploy onesource-chatbot --source-code-path /Workspace/Users/christophe.anglade@external.danone.com/onesource-chatbot --profile your-profile
+```
+
+### Local Development
+```bash
+# Easy local development using the provided script
+./dev.sh
+
+# Or manual setup
+pip install -r requirements-databricks.txt
+export SERVING_ENDPOINT=ka-1f9efcb2-endpoint
+python main_databricks.py
+```
+
+## 🌐 Live Application
+
+- **App Name**: `onesource-chatbot`
+- **URL**: https://onesource-chatbot-184869479979522.2.azure.databricksapps.com
+- **Status**: ✅ Production Ready
 
 ## 🏗️ Project Structure
 
@@ -8,366 +48,200 @@ A comprehensive chatbot application with FastAPI backend and modern web frontend
 base_chatbot/
 ├── backend/                    # Backend API and services
 │   ├── api/                   # FastAPI application
-│   │   └── app.py            # Main API application with all endpoints
-│   ├── services/             # Business logic services
-│   │   ├── auth_service.py   # JWT authentication service
-│   │   ├── databricks_lakebase_service.py # Databricks Lakebase service
-│   │   ├── lakebase_postgres_service.py # Lakebase PostgreSQL service
-│   │   ├── postgres_service.py # PostgreSQL service
-│   │   ├── firestore_auth.py # Firestore authentication (legacy)
-│   │   ├── firebase_config.py # Firebase configuration
-│   │   └── firebase_config_mock.py # Mock auth for development
-│   └── models/               # Data models (future expansion)
-├── frontend/                  # Frontend application
-│   ├── static/               # Static assets
-│   │   └── onesource-logo.png # Application logo
-│   ├── components/           # React components
-│   │   └── auth.html         # Authentication page
-│   ├── js/                   # JavaScript modules
-│   │   ├── session-manager.js # Session management
-│   │   ├── session-status-indicator.js # Status indicators
-│   │   └── session-timeout-warning.js # Timeout handling
-│   ├── index.html            # Main React application
-│   └── index_simple.html     # Simplified version
-├── databricks-setup/         # Databricks environment setup
-│   ├── setup.py              # Main setup script
-│   ├── check_complete_setup.py # Comprehensive check script
-│   ├── config_manager.py     # Configuration management
-│   ├── environments.json     # Environment-specific configurations
-│   ├── setup_config.py       # Interactive configuration setup
-│   ├── validate_config.py    # Configuration validation
+│   │   ├── app_databricks.py  # Main API application for Databricks Apps
+│   │   └── model_serving_utils.py # Model serving utilities with content formatting
+│   ├── config/                # Configuration files
+│   │   └── database.py        # Database configuration with token refresh
+│   ├── models/                # Data models
+│   │   ├── conversations.py   # Conversation models
+│   │   └── users.py          # User models
+│   └── services/              # Business logic services
+│       ├── conversation_service.py # Conversation management
+│       └── user_service.py    # User management
+├── frontend/                  # Web frontend
+│   ├── index.html            # Main HTML file with OneSource branding
+│   └── static/               # Static assets
+│       └── onesource-logo.png # Logo
+├── databricks-setup/         # Database setup and configuration
+│   ├── init_tables.py        # Database initialization with SSL support
+│   ├── setup.py             # Setup utilities
+│   ├── environments.json    # Environment configurations
 │   └── README.md            # Setup documentation
-├── main.py                   # Application entry point
-├── env.example              # Environment variables template
-├── requirements.txt         # Python dependencies
-├── requirements-web.txt     # Web-specific dependencies
-└── README.md               # This file
+├── app.yaml                  # Databricks Apps configuration
+├── main_databricks.py        # Application entry point
+├── requirements-databricks.txt # Python dependencies (Databricks SDK, MLflow)
+├── deploy.sh                 # Deployment script
+├── dev.sh                    # Development script
+└── README.md                 # This file
 ```
 
-## 🚀 Quick Start
+## 🔧 Technical Architecture
 
-### 1. Setup Environment
+### Backend (FastAPI)
+- **Authentication**: Databricks SDK with automatic token management
+- **Serving Endpoint**: `ka-1f9efcb2-endpoint` agent endpoint via Databricks SDK
+- **Content Processing**: Smart cleaning and formatting of responses
+- **Database**: Mock database for conversation persistence
+- **Error Handling**: Comprehensive logging and graceful error recovery
+
+### Frontend (React + Tailwind CSS)
+- **UI Framework**: Modern React with Tailwind CSS
+- **Branding**: OneSource 2.0 visual identity
+- **Responsive**: Mobile and desktop optimized
+- **Real-time**: Live chat interface with message history
+
+### Databricks Integration
+- **Apps Environment**: Native Databricks Apps deployment
+- **SDK Integration**: Uses Databricks SDK for all platform interactions
+- **Serving Endpoints**: Direct integration with agent endpoints
+- **Authentication**: Automatic token management in Databricks environment
+
+## 🔧 Configuration
+
+### Environment Variables
+The application uses the following environment variables (configured in `app.yaml`):
+
+- `SERVING_ENDPOINT`: Databricks serving endpoint name (`ka-1f9efcb2-endpoint`)
+- `DATABRICKS_WORKSPACE_URL`: Databricks workspace URL
+- `LAKEBASE_HOST`: Lakebase database host
+- `LAKEBASE_PORT`: Lakebase database port
+- `LAKEBASE_DATABASE_NAME`: Database name
+- `LAKEBASE_USERNAME`: Database username
+- `LAKEBASE_PASSWORD`: Database password
+
+### Serving Endpoint
+The chatbot is configured to use the `ka-1f9efcb2-endpoint` agent endpoint for AI responses. This endpoint:
+- Uses Databricks SDK for reliable communication
+- Supports agent/v1/responses task type
+- Handles complex response structures automatically
+- Provides clean, formatted responses
+
+## 🎯 Features
+
+- **AI-Powered Responses**: Uses Databricks agent endpoints (`ka-1f9efcb2-endpoint`) for intelligent responses
+- **Conversation Management**: Persistent conversation history with mock database
+- **Modern UI**: Clean, responsive web interface with OneSource branding
+- **Smart Content Formatting**: 
+  - Automatic formatting of numbered steps (1., 2., 3.)
+  - Removes reference markers like `[^kHh9-2][^kHh9-3]`
+  - Cleans up excessive whitespace and formatting
+- **Robust Authentication**: Databricks SDK with automatic token management
+- **Comprehensive Error Handling**: Detailed logging and graceful error recovery
+- **Timeout Protection**: 30-second timeouts prevent gateway timeouts
+- **Production Ready**: Optimized for Databricks Apps environment
+
+## 🛠️ Development
+
+### Quick Commands
+
+#### Deploy to Production
 ```bash
-# Copy environment template
-cp env.example .env
-
-# Edit .env with your configuration
-# The setup script will use config/environments.json for Databricks settings
+./deploy.sh [profile]
 ```
 
-### 2. Install Dependencies
+#### Local Development
 ```bash
-# Install Python dependencies
-pip install -r requirements.txt
-
-# For web development
-pip install -r requirements-web.txt
+./dev.sh
 ```
 
-### 3. Setup Databricks Environment
+#### Manual Setup
 ```bash
-# Setup everything (development environment)
-python databricks-setup/setup.py
+# Install dependencies
+pip install -r requirements-databricks.txt
 
-# Check setup
-python databricks-setup/check_complete_setup.py
+# Set environment variables
+export SERVING_ENDPOINT=ka-1f9efcb2-endpoint
 
-# Setup specific environment
-python databricks-setup/setup.py --environment staging
-
-# Dry run to see what would be done
-python databricks-setup/setup.py --dry-run
+# Run locally
+python main_databricks.py
 ```
 
-### 4. Run Application
+### Database Setup
+Use the scripts in `databricks-setup/` to initialize the database:
 ```bash
-# Start the application
-python main.py
+cd databricks-setup
+python init_tables.py
 ```
 
-## 🚀 Features
+## 📝 API Endpoints
 
-### Core Functionality
-- **User Authentication**: Email/password with JWT tokens and session management
-- **Conversation Management**: Persistent chat history in Firestore with auto-generated titles
-- **AI-Powered Research**: Integration with Databricks serving endpoints for legal document analysis
-- **Document Processing**: PDF chunking and text extraction for ICC documentation
-- **Responsive Design**: Mobile and desktop optimized interface
-
-### Authentication & Security
-- JWT-based authentication with refresh tokens
-- Password hashing with bcrypt
-- Firestore integration for user data
-- Session management with timeout warnings
-- Mock authentication for local development
-
-### Conversation Features
-- Auto-generated conversation titles
-- Timestamp display with smart formatting
-- 20 conversation limit per user
-- Empty conversation cleanup
-- Scrollable conversation history
-- Session timeout warnings
-
-### Data Processing
-- PDF document chunking with overlap
-- Text extraction and preprocessing
-- Section classification
-- Parquet data storage
-- Jupyter notebook analysis
-
-## 🛠️ Installation & Setup
-
-### Prerequisites
-- Python 3.8+
-- Google Cloud Project with Firestore enabled (for production)
-- Databricks workspace with serving endpoints (for AI features)
-
-### 1. Clone the Repository
-```bash
-git clone <repository-url>
-cd icc_chatbot
-```
-
-### 2. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Configure Environment
-Create a `.env` file in the root directory:
-```env
-# JWT Configuration (REQUIRED)
-JWT_SECRET_KEY=your-super-secret-jwt-key-here
-
-# Firebase Configuration (OPTIONAL - will use mock auth if not provided)
-FIREBASE_SERVICE_ACCOUNT_PATH=config/firebase-credentials/icc-project-472009-firebase-adminsdk.json
-
-# Databricks Configuration (OPTIONAL - for AI features)
-DATABRICKS_TOKEN=your-databricks-token-here
-
-# Server Configuration
-HOST=0.0.0.0
-PORT=8000
-DEBUG=false
-```
-
-### 4. Set up Firebase (Production)
-1. Download your Firebase service account JSON file
-2. Place it in `config/firebase-credentials/`
-3. Update the path in your `.env` file
-
-**Note**: For local development, the app will automatically use mock authentication if Firebase credentials are not available.
-
-### 5. Set up Databricks Environment (Optional - for AI features)
-1. Configure your Databricks CLI with a profile:
-   ```bash
-   databricks configure --profile dbxworkspace
-   ```
-2. Set up the complete Databricks environment:
-   ```bash
-   python databricks-setup/setup_databricks_env.py
-   ```
-3. Verify the setup:
-   ```bash
-   python databricks-setup/check_databricks_env.py
-   ```
-
-See `databricks-setup/README.md` for detailed setup instructions.
-
-### 6. Run the Application
-```bash
-python main.py
-```
-
-The application will be available at `http://localhost:8000`
-
-## 🔧 Development
-
-### Quick Start
-For local development without Firebase setup:
-
-```bash
-# Clone and setup
-git clone <repository-url>
-cd icc_chatbot
-python setup_local.py
-
-# Start the application
-python main.py
-```
-
-### Backend Development
-The backend is built with FastAPI and organized into:
-- **API Layer** (`backend/api/`): FastAPI routes and endpoints
-- **Services Layer** (`backend/services/`): Business logic and external integrations
-- **Models Layer** (`backend/models/`): Data models and schemas
-
-### Frontend Development
-The frontend is a single-page React application with:
-- **Static Assets** (`frontend/static/`): Images, icons, and static files
-- **Components** (`frontend/components/`): React components and pages
-- **JavaScript Modules** (`frontend/js/`): Session management and UI components
-- **Main App** (`frontend/index.html`): Main React application
-
-### Data Processing
-Document processing scripts are in `data_processing/chunking/`:
-- PDF chunking and text extraction
-- Section classification
-- Data preprocessing for RAG systems
-
-## 🐳 Docker Deployment
-
-### Build the Container
-```bash
-docker build -t icc-chatbot .
-```
-
-### Run the Container
-```bash
-docker run -p 8000:8000 \
-  -e JWT_SECRET_KEY=your-secret-key \
-  -e FIREBASE_SERVICE_ACCOUNT_PATH=/app/config/firebase-credentials/icc-project-472009-firebase-adminsdk.json \
-  -e DATABRICKS_TOKEN=your-databricks-token \
-  icc-chatbot
-```
-
-## ☁️ Cloud Run Deployment
-
-### Prerequisites
-- Google Cloud SDK installed
-- Project configured with Cloud Run API enabled
-- Firestore database set up
-- Databricks workspace configured
-
-### Deploy to Cloud Run
-```bash
-# Update PROJECT_ID in deploy.sh
-./deploy.sh
-```
-
-Or manually:
-```bash
-# Build and push to Container Registry
-gcloud builds submit --tag gcr.io/your-project-id/icc-chatbot
-
-# Deploy to Cloud Run
-gcloud run deploy icc-chatbot \
-  --image gcr.io/your-project-id/icc-chatbot \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --set-env-vars JWT_SECRET_KEY=your-secret-key \
-  --set-secrets DATABRICKS_TOKEN=databricks-token:latest
-```
-
-### Required Secrets
-1. **JWT_SECRET_KEY**: Strong secret for JWT token signing
-2. **DATABRICKS_TOKEN**: Personal access token for Databricks API
-3. **Firebase Service Account**: JSON credentials for Firestore access
-
-## 📊 Data Processing
-
-### Document Chunking
-Process PDF documents into searchable chunks:
-```bash
-cd data_processing/chunking
-python run_geneva_chunking.py
-```
-
-### Notebook Analysis
-Run Jupyter notebooks for data analysis:
-```bash
-cd data_processing/notebooks
-python ICC_Enhanced_RAG_Production.py
-```
-
-## 🧪 Testing
-
-### Test API Endpoints
-```bash
-# Test health endpoint
-curl http://localhost:8000/health
-
-# Test login
-curl -X POST http://localhost:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "test@example.com", "password": "testpass123"}'
-
-# Test chat (requires authentication)
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-jwt-token" \
-  -d '{"message": "Hello, ICC Assistant!"}'
-```
-
-## 🔒 Security Considerations
-
-- JWT tokens are used for authentication
-- Passwords are hashed with bcrypt
-- CORS is configured for development (update for production)
-- Environment variables are used for sensitive configuration
-- Firebase security rules should be configured
-- Session timeout warnings prevent unauthorized access
-
-## 📝 API Documentation
-
-### Authentication Endpoints
-- `POST /auth/signup` - User registration
-- `POST /auth/login` - User login
-- `POST /auth/refresh` - Refresh access token
-- `GET /auth/me` - Get current user info
-- `PUT /auth/profile` - Update user profile
-- `DELETE /auth/account` - Delete user account
-
-### Conversation Endpoints
+### Chat
+- `POST /chat` - Send a message to the chatbot
 - `GET /conversations` - Get user conversations
-- `POST /conversations` - Create new conversation
-- `PUT /conversations/{id}` - Update conversation
-- `DELETE /conversations/{id}` - Delete conversation
-- `POST /conversations/cleanup` - Clean up empty conversations
+- `POST /conversations` - Create a new conversation
+- `PUT /conversations/{id}` - Update a conversation
+- `DELETE /conversations/{id}` - Delete a conversation
 
-### Chat Endpoints
-- `POST /chat` - Send message to AI assistant
+### Debug
+- `GET /debug/token-test` - Test token retrieval
+- `GET /debug/serving-test` - Test serving endpoint
+- `GET /debug/env` - Check environment variables
 
-### Utility Endpoints
-- `GET /health` - Health check
-- `GET /api/info` - API information
-- `GET /` - Redirects to app
-- `GET /app` - Main application
+## 🔍 Troubleshooting
+
+### Common Issues
+1. **Authentication**: Databricks SDK handles authentication automatically in Databricks Apps
+2. **Serving Endpoint**: Verify `ka-1f9efcb2-endpoint` has proper permissions
+3. **Response Formatting**: Content cleaning is automatic, no manual intervention needed
+4. **Database Connection**: Mock database is used by default for reliability
+
+### Debug Endpoints
+Use the debug endpoints to troubleshoot issues:
+- `/debug/token-test` - Check Databricks SDK authentication
+- `/debug/serving-test` - Test AI responses and content formatting
+- `/debug/env` - Verify environment variables
+- `/debug/serving` - Test serving endpoint directly
+
+### Content Formatting Issues
+If responses contain reference markers or poor formatting:
+- The system automatically cleans content
+- Reference markers like `[^kHh9-2]` are removed
+- Numbered steps are formatted consistently
+- No manual intervention required
+
+## 🆕 Recent Improvements
+
+### Content Formatting (Latest)
+- **Reference Marker Removal**: Automatically removes `[^kHh9-2][^kHh9-3]` type markers
+- **Step Formatting**: Converts various step formats to clean "1. ", "2. ", "3. " format
+- **Whitespace Cleaning**: Removes excessive newlines and spaces
+- **Response Parsing**: Handles complex agent endpoint response structures
+
+### Authentication & Reliability
+- **Databricks SDK Integration**: Switched from manual token handling to SDK
+- **Automatic Token Management**: No more manual token configuration needed
+- **Timeout Handling**: 30-second timeouts prevent gateway timeouts
+- **Error Recovery**: Comprehensive error handling and fallback mechanisms
+
+### UI/UX Improvements
+- **Clean Responses**: Professional-looking answers without technical artifacts
+- **Consistent Formatting**: Standardized numbered lists and content structure
+- **Better Performance**: Faster response times with optimized endpoint communication
+
+## 📊 Current Status
+
+- ✅ **Production Ready**: App is deployed and working
+- ✅ **Clean Structure**: Organized and documented
+- ✅ **Easy Deployment**: Simple scripts for deployment
+- ✅ **Easy Development**: Simple scripts for local development
+- ✅ **Well Documented**: Comprehensive documentation
+- ✅ **Content Formatting**: Smart cleaning and formatting of responses
+- ✅ **Robust Authentication**: Databricks SDK integration
+
+## 📚 Documentation
+
+- [Databricks Apps Documentation](https://docs.databricks.com/apps)
+- [OneSource 2.0 Confluence](https://confluence-danone.atlassian.net/wiki/spaces/OSP2)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
+4. Test thoroughly
 5. Submit a pull request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For support and questions:
-- Create an issue in the repository
-- Check the documentation in the `docs/` directory
-- Review the API documentation at `/docs` when running the application
-
-## 🔄 Version History
-
-- **v1.0.0** - Initial release with authentication, conversation management, and document processing
-- **v1.1.0** - Added session management and timeout warnings
-- **v1.2.0** - Integrated Databricks AI endpoints for enhanced legal research
-- **v1.3.0** - Improved UI/UX and cleaned up project structure
-
-## 🎯 Roadmap
-
-- [ ] Enhanced document search capabilities
-- [ ] Advanced legal citation formatting
-- [ ] Multi-language support
-- [ ] Advanced analytics dashboard
-- [ ] Integration with additional legal databases
-- [ ] Mobile application
-- [ ] Advanced AI model fine-tuning
+This project is proprietary to Danone and is not open source.
