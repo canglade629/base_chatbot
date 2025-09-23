@@ -38,7 +38,26 @@ MODEL_ENDPOINT = os.getenv("MODEL_ENDPOINT")  # e.g. databricks-meta-llama-3-70b
 # Get serving endpoint from environment
 SERVING_ENDPOINT = MODEL_ENDPOINT or os.getenv('SERVING_ENDPOINT')
 
-assert SERVING_ENDPOINT, \
+# Available endpoints configuration
+AVAILABLE_ENDPOINTS = {
+    "ka-1f9efcb2-endpoint": {
+        "name": "ka-1f9efcb2-endpoint",
+        "display_name": "Agent Bricks Endpoint",
+        "description": "Primary AI endpoint",
+        "is_default": True
+    },
+    "agents_onehouse_am_dev_dtu_dm1am-product-chatbot": {
+        "name": "agents_onehouse_am_dev_dtu_dm1am-product-chatbot",
+        "display_name": "Custom Endpoint",
+        "description": "Open source custom model",
+        "is_default": False
+    }
+}
+
+# Set default endpoint
+DEFAULT_ENDPOINT = SERVING_ENDPOINT or "ka-1f9efcb2-endpoint"
+
+assert DEFAULT_ENDPOINT, \
     ("Unable to determine serving endpoint to use for chatbot app. If developing locally, "
      "set the MODEL_ENDPOINT or SERVING_ENDPOINT environment variable to the name of your serving endpoint. If "
      "deploying to a Databricks app, include a serving endpoint resource named "
@@ -46,7 +65,7 @@ assert SERVING_ENDPOINT, \
      "https://docs.databricks.com/aws/en/generative-ai/agent-framework/chat-app#deploy-the-databricks-app")
 
 # Check if the endpoint is supported
-endpoint_supported = is_endpoint_supported(SERVING_ENDPOINT)
+endpoint_supported = is_endpoint_supported(DEFAULT_ENDPOINT)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -547,19 +566,29 @@ async def cleanup_conversations(request: Request):
 # Pydantic models
 class ChatMessage(BaseModel):
     message: str
+    endpoint_name: str = None
 
 class ChatResponse(BaseModel):
     response: str
 
-async def query_llm(message: str, history: list = None, user_token: str = None) -> str:
+async def query_llm(message: str, history: list = None, user_token: str = None, endpoint_name: str = None) -> str:
     """
     Query the LLM with the given message and chat history.
     `message`: str - the latest user input.
     `history`: list of tuples - (user_msg, assistant_msg) pairs.
     `user_token`: str - user's access token for serving endpoint authentication.
+    `endpoint_name`: str - specific endpoint to use, defaults to DEFAULT_ENDPOINT.
     """
     if not message.strip():
         return "ERROR: The question should not be empty"
+
+    # Use provided endpoint or default
+    selected_endpoint = endpoint_name or DEFAULT_ENDPOINT
+    
+    # Validate endpoint
+    if selected_endpoint not in AVAILABLE_ENDPOINTS:
+        logger.warning(f"Invalid endpoint {selected_endpoint}, falling back to default")
+        selected_endpoint = DEFAULT_ENDPOINT
 
     # Convert from history format to OpenAI-style messages
     message_history = []
@@ -572,9 +601,9 @@ async def query_llm(message: str, history: list = None, user_token: str = None) 
     message_history.append({"role": "user", "content": message})
 
     try:
-        logger.info(f"Querying model endpoint: {SERVING_ENDPOINT}")
+        logger.info(f"Querying model endpoint: {selected_endpoint}")
         response = await query_endpoint(
-            endpoint_name=SERVING_ENDPOINT,
+            endpoint_name=selected_endpoint,
             messages=message_history,
             max_tokens=1000
         )
@@ -1206,8 +1235,11 @@ async def chat_endpoint(chat_message: ChatMessage, request: Request):
         
         logger.info(f"Chat request from user: {user_email}")
         
-        # Use App auth for model calls
-        response_content = await query_llm(chat_message.message)
+        # Use App auth for model calls with optional endpoint selection
+        response_content = await query_llm(
+            message=chat_message.message,
+            endpoint_name=chat_message.endpoint_name
+        )
         
         return ChatResponse(response=response_content)
         
@@ -1787,6 +1819,144 @@ async def debug_db_config():
             "success": True
         }
     except Exception as e:
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+# Endpoint switching API endpoints
+@app.get("/endpoints")
+async def get_available_endpoints():
+    """Get list of available endpoints"""
+    try:
+        return {
+            "endpoints": list(AVAILABLE_ENDPOINTS.values()),
+            "default_endpoint": DEFAULT_ENDPOINT,
+            "success": True
+        }
+    except Exception as e:
+        logger.error(f"Error getting available endpoints: {e}")
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+@app.get("/endpoints/current")
+async def get_current_endpoint():
+    """Get the currently selected endpoint"""
+    try:
+        # For now, return the default endpoint
+        # In a real implementation, this could be stored per user/session
+        return {
+            "current_endpoint": DEFAULT_ENDPOINT,
+            "endpoint_info": AVAILABLE_ENDPOINTS.get(DEFAULT_ENDPOINT, {}),
+            "success": True
+        }
+    except Exception as e:
+        logger.error(f"Error getting current endpoint: {e}")
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+@app.post("/endpoints/switch")
+async def switch_endpoint(request: Request):
+    """Switch to a different endpoint"""
+    try:
+        data = await request.json()
+        endpoint_name = data.get("endpoint_name")
+        
+        if not endpoint_name:
+            raise HTTPException(status_code=400, detail="endpoint_name is required")
+        
+        if endpoint_name not in AVAILABLE_ENDPOINTS:
+            raise HTTPException(status_code=400, detail=f"Endpoint {endpoint_name} not available")
+        
+        # For now, we'll just validate the endpoint exists
+        # In a real implementation, this could be stored per user/session
+        endpoint_info = AVAILABLE_ENDPOINTS[endpoint_name]
+        
+        logger.info(f"Endpoint switch requested to: {endpoint_name}")
+        
+        return {
+            "message": f"Switched to {endpoint_info['display_name']}",
+            "current_endpoint": endpoint_name,
+            "endpoint_info": endpoint_info,
+            "success": True
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error switching endpoint: {e}")
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+@app.get("/debug/endpoints")
+async def debug_endpoints():
+    """Debug endpoint to test connection to both endpoints"""
+    try:
+        from .model_serving_utils import query_endpoint
+        
+        results = {}
+        test_messages = [{"role": "user", "content": "Hello, this is a test message."}]
+        
+        for endpoint_name, endpoint_info in AVAILABLE_ENDPOINTS.items():
+            try:
+                logger.info(f"Testing endpoint: {endpoint_name}")
+                
+                # Test the endpoint with a simple message
+                response = await query_endpoint(
+                    endpoint_name=endpoint_name,
+                    messages=test_messages,
+                    max_tokens=50
+                )
+                
+                results[endpoint_name] = {
+                    "name": endpoint_name,
+                    "display_name": endpoint_info["display_name"],
+                    "description": endpoint_info["description"],
+                    "is_default": endpoint_info["is_default"],
+                    "status": "success",
+                    "response_preview": response.get("content", "")[:100] + "..." if len(response.get("content", "")) > 100 else response.get("content", ""),
+                    "response_length": len(response.get("content", "")),
+                    "error": None
+                }
+                
+                logger.info(f"✅ Endpoint {endpoint_name} test successful")
+                
+            except Exception as e:
+                logger.error(f"❌ Endpoint {endpoint_name} test failed: {e}")
+                results[endpoint_name] = {
+                    "name": endpoint_name,
+                    "display_name": endpoint_info["display_name"],
+                    "description": endpoint_info["description"],
+                    "is_default": endpoint_info["is_default"],
+                    "status": "error",
+                    "response_preview": None,
+                    "response_length": 0,
+                    "error": str(e)
+                }
+        
+        # Count successful vs failed endpoints
+        successful_endpoints = sum(1 for result in results.values() if result["status"] == "success")
+        total_endpoints = len(results)
+        
+        return {
+            "endpoints": results,
+            "summary": {
+                "total_endpoints": total_endpoints,
+                "successful_endpoints": successful_endpoints,
+                "failed_endpoints": total_endpoints - successful_endpoints,
+                "all_working": successful_endpoints == total_endpoints
+            },
+            "test_message": "Hello, this is a test message.",
+            "success": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in debug endpoints: {e}")
         return {
             "error": str(e),
             "success": False

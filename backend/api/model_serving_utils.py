@@ -28,6 +28,17 @@ def clean_and_format_content(content: str) -> str:
     # Format numbered steps
     content = format_numbered_steps(content)
     
+    # Fix any leading colons at the beginning of paragraphs
+    # This addresses the specific issue where colons appear at the start of paragraphs
+    lines = content.split('\n')
+    fixed_lines = []
+    for line in lines:
+        # Remove leading colon followed by whitespace at the start of a line
+        if line.strip().startswith(':'):
+            line = line.strip()[1:].strip()
+        fixed_lines.append(line)
+    content = '\n'.join(fixed_lines)
+    
     return content
 
 def format_numbered_steps(content: str) -> str:
@@ -38,8 +49,8 @@ def format_numbered_steps(content: str) -> str:
     patterns = [
         # Match "1.", "2.", "3." etc. at start of line
         (r'^(\d+)\.\s+', r'\1. '),
-        # Match "Step 1:", "Step 2:", etc.
-        (r'Step\s+(\d+):\s*', r'\1. '),
+        # Match "Step 1:", "Step 2:", etc. - more specific pattern
+        (r'^Step\s+(\d+):\s*', r'\1. '),
         # Match "1)", "2)", "3)" etc.
         (r'^(\d+)\)\s+', r'\1. '),
         # Match "• 1.", "• 2.", etc.
@@ -311,7 +322,8 @@ async def _query_endpoint(endpoint_name: str, messages: List[Dict[str, str]], ma
                     if 'text\': \'' in content:
                         # Try to extract the actual text content
                         import re
-                        text_match = re.search(r"text': '([^']*)'", content)
+                        # More robust pattern that handles escaped quotes
+                        text_match = re.search(r"text': '([^']*(?:\\'[^']*)*)'", content)
                         if text_match:
                             content = text_match.group(1)
                     
