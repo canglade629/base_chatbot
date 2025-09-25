@@ -38,10 +38,14 @@ async def get_user_conversations(user_email: str) -> List[Dict[str, Any]]:
         logger.error(f"Error getting conversations for user {user_email}: {e}")
         return []
 
-async def create_conversation(user_email: str, title: str, messages: List[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+async def create_conversation(user_email: str, title: str, messages: List[Dict[str, Any]] = None, conversation_id: str = None) -> Optional[Dict[str, Any]]:
     """Create a new conversation for a user"""
     try:
+        logger.info(f"Creating conversation for user: {user_email}")
+        
         async for db in get_async_db():
+            logger.info(f"Got database session for conversation creation: {user_email}")
+            
             # First get or create the user
             from services.user_service import get_or_create_user
             user = await get_or_create_user(user_email)
@@ -50,9 +54,16 @@ async def create_conversation(user_email: str, title: str, messages: List[Dict[s
                 logger.error(f"Could not get or create user: {user_email}")
                 return None
             
+            logger.info(f"User retrieved for conversation: {user.id}")
+            
             # Create conversation
-            conversation_id = f"conv_{uuid.uuid4().hex[:8]}"
+            if not conversation_id:
+                import time
+                import random
+                conversation_id = f"conv_{int(time.time() * 1000)}_{''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=9))}"
             now = datetime.now()
+            
+            logger.info(f"Creating conversation with ID: {conversation_id}")
             
             conversation = Conversation(
                 id=conversation_id,
@@ -62,7 +73,9 @@ async def create_conversation(user_email: str, title: str, messages: List[Dict[s
             )
             
             db.add(conversation)
+            logger.info(f"Added conversation to session: {conversation_id}")
             await db.commit()
+            logger.info(f"Committed conversation creation: {conversation_id}")
             await db.refresh(conversation)
             
             logger.info(f"Created conversation {conversation_id} for user {user_email}")
@@ -70,6 +83,8 @@ async def create_conversation(user_email: str, title: str, messages: List[Dict[s
             
     except Exception as e:
         logger.error(f"Error creating conversation for user {user_email}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 async def update_conversation(conversation_id: str, user_email: str, title: str = None, messages: List[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:

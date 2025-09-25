@@ -16,7 +16,7 @@ from .model_serving_utils import query_endpoint, is_endpoint_supported
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # Re-enable database integration for Lakebase
-from config.database import init_engine, start_token_refresh, stop_token_refresh, check_database_exists
+from config.database import init_engine, check_database_exists, start_token_refresh, stop_token_refresh
 from services.user_service import get_or_create_user
 from services.conversation_service import (
     get_user_conversations, 
@@ -25,6 +25,7 @@ from services.conversation_service import (
     delete_conversation as delete_conversation_service, 
     cleanup_empty_conversations
 )
+from utils.oauth_utils import get_user_email_from_token, get_user_info_from_token
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +38,26 @@ MODEL_ENDPOINT = os.getenv("MODEL_ENDPOINT")  # e.g. databricks-meta-llama-3-70b
 # Get serving endpoint from environment
 SERVING_ENDPOINT = MODEL_ENDPOINT or os.getenv('SERVING_ENDPOINT')
 
-assert SERVING_ENDPOINT, \
+# Available endpoints configuration
+AVAILABLE_ENDPOINTS = {
+    "ka-1f9efcb2-endpoint": {
+        "name": "ka-1f9efcb2-endpoint",
+        "display_name": "Agent Bricks Endpoint",
+        "description": "Primary AI endpoint",
+        "is_default": True
+    },
+    "agents_onehouse_am_dev_dtu_dm1am-product-chatbot": {
+        "name": "agents_onehouse_am_dev_dtu_dm1am-product-chatbot",
+        "display_name": "Custom Endpoint",
+        "description": "Open source custom model",
+        "is_default": False
+    }
+}
+
+# Set default endpoint
+DEFAULT_ENDPOINT = SERVING_ENDPOINT or "ka-1f9efcb2-endpoint"
+
+assert DEFAULT_ENDPOINT, \
     ("Unable to determine serving endpoint to use for chatbot app. If developing locally, "
      "set the MODEL_ENDPOINT or SERVING_ENDPOINT environment variable to the name of your serving endpoint. If "
      "deploying to a Databricks app, include a serving endpoint resource named "
@@ -45,7 +65,7 @@ assert SERVING_ENDPOINT, \
      "https://docs.databricks.com/aws/en/generative-ai/agent-framework/chat-app#deploy-the-databricks-app")
 
 # Check if the endpoint is supported
-endpoint_supported = is_endpoint_supported(SERVING_ENDPOINT)
+endpoint_supported = is_endpoint_supported(DEFAULT_ENDPOINT)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -54,15 +74,38 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Danone Onesource 2.0 Assistant...")
     
     try:
-        if check_database_exists():
-            logger.info("✅ Lakebase database found - initializing connection...")
+        logger.info("🔍 Attempting to initialize database connection...")
+        
+        # Always try to initialize the database engine
+        # The check_database_exists() might fail due to permissions, but the actual connection might work
+        try:
             init_engine()
-            await start_token_refresh()
-            logger.info("✅ Application started with Lakebase connection")
-        else:
-            logger.warning("⚠️ Lakebase database not found - conversation history disabled")
+            logger.info("✅ Database engine initialized successfully")
+            
+            # Ensure tables exist
+            from config.database import ensure_database_tables
+            tables_created = await ensure_database_tables()
+            if tables_created:
+                logger.info("✅ Database tables ensured")
+            else:
+                logger.warning("⚠️ Failed to ensure database tables")
+            
+            # Start background token refresh only if using OAuth approach
+            from config.database import database_instance
+            if database_instance is not None:
+                await start_token_refresh()
+                logger.info("✅ Application started with Lakebase connection and token refresh")
+            else:
+                logger.info("✅ Application started with Lakebase connection (static credentials)")
+                
+        except Exception as db_init_error:
+            logger.warning(f"⚠️ Database initialization failed: {db_init_error}")
+            logger.info("💡 Continuing without database - conversation history will be disabled")
+            logger.info("💡 This is normal if Lakebase is not configured or accessible")
     except Exception as e:
         logger.error(f"❌ Error initializing database: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         logger.warning("⚠️ Continuing without database - conversation history disabled")
     
     yield
@@ -72,7 +115,7 @@ async def lifespan(app: FastAPI):
     try:
         await stop_token_refresh()
     except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
+        logger.error(f"Error during token refresh shutdown: {e}")
     logger.info("✅ Application shutdown complete")
 
 app = FastAPI(
@@ -115,7 +158,7 @@ conversations_storage = {}
 users_storage = {}
 
 # Mock database flag - set to True to disable database operations
-MOCK_DATABASE = True
+MOCK_DATABASE = False
 
 # Mock functions for database operations
 async def mock_get_or_create_user(email: str, display_name: str = None, username: str = None):
@@ -205,9 +248,32 @@ async def mock_cleanup_empty_conversations(user_email: str):
     return deleted_count
 
 @app.get("/conversations")
-async def get_conversations(user_email: str = Query(...)):
+async def get_conversations(request: Request):
     """Get all conversations for a user"""
     try:
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
+        
+        # Debug logging
+        logger.info(f"GET /conversations - Headers: {dict(request.headers)}")
+        logger.info(f"X-Forwarded-Access-Token present: {bool(user_token)}")
+        if user_token:
+            logger.info(f"Token length: {len(user_token)}")
+        
+        # Extract user email from OAuth token
+        user_email = None
+        if user_token:
+            user_email = get_user_email_from_token(user_token)
+            logger.info(f"Extracted user email from OAuth token: {user_email}")
+        else:
+            # Fallback to header-based email if token extraction fails
+            user_email = request.headers.get("X-Forwarded-Email")
+            logger.info(f"Using header-based user email: {user_email}")
+        
+        if not user_email:
+            logger.warning("No user email found for conversations")
+            return {"conversations": []}
+        
         if MOCK_DATABASE:
             # Use mock functions
             conversations = await mock_get_user_conversations(user_email)
@@ -216,9 +282,24 @@ async def get_conversations(user_email: str = Query(...)):
             # Try Lakebase first - always try database, don't check if it exists
             try:
                 conversations = await get_user_conversations(user_email)
+                logger.info(f"Retrieved {len(conversations)} conversations for user {user_email}")
+                logger.info(f"Conversation IDs: {[conv.get('id') for conv in conversations]}")
                 return {"conversations": conversations}
             except Exception as db_error:
                 logger.error(f"Database error in get conversations: {db_error}")
+                
+                # Try to initialize database engine if it's not initialized
+                try:
+                    from config.database import engine
+                    if engine is None:
+                        logger.info("Database engine not initialized, attempting to initialize...")
+                        init_engine()
+                        # Try again after initialization
+                        conversations = await get_user_conversations(user_email)
+                        return {"conversations": conversations}
+                except Exception as init_error:
+                    logger.error(f"Failed to initialize database engine: {init_error}")
+                
                 # Fall back to in-memory storage if database fails
                 user_conversations = [conv for conv in conversations_storage.values() if conv.get('user_email') == user_email]
                 user_conversations.sort(key=lambda x: x.get('updated_at', ''), reverse=True)
@@ -228,69 +309,89 @@ async def get_conversations(user_email: str = Query(...)):
         return {"conversations": []}
 
 @app.post("/conversations")
-async def create_conversation(conversation_data: dict):
+async def create_conversation(conversation_data: dict, request: Request):
     """Create a new conversation"""
     try:
-        user_email = conversation_data.get("user_email")
-        if not user_email:
-            raise HTTPException(status_code=400, detail="user_email is required")
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
         
-        if MOCK_DATABASE:
-            # Use mock functions
-            user = await mock_get_or_create_user(user_email)
-            conversation = await mock_create_conversation(
+        # Log all headers for debugging
+        logger.info(f"Create conversation request headers: {dict(request.headers)}")
+        logger.info(f"Create conversation request body: {conversation_data}")
+        
+        # Extract user email from OAuth token
+        user_email = None
+        if user_token:
+            user_email = get_user_email_from_token(user_token)
+            logger.info(f"Extracted user email from OAuth token: {user_email}")
+        else:
+            # Fallback to header-based email if token extraction fails
+            user_email = request.headers.get("X-Forwarded-Email")
+            logger.info(f"Using header-based user email: {user_email}")
+        
+        if not user_email:
+            logger.error("No user email found in request")
+            raise HTTPException(status_code=400, detail="User email not found in request")
+        
+        # Try Lakebase database first
+        try:
+            logger.info(f"Creating conversation for user: {user_email}")
+            
+            # Create or get user first
+            user = await get_or_create_user(user_email)
+            if not user:
+                logger.error(f"Failed to create or retrieve user: {user_email}")
+                raise HTTPException(status_code=500, detail="Failed to create or retrieve user")
+            
+            logger.info(f"User created/retrieved: {user.id}")
+            
+            conversation = await create_conversation_service(
                 user_email=user_email,
                 title=conversation_data.get("title", "New Conversation"),
-                messages=conversation_data.get("messages", [])
+                messages=conversation_data.get("messages", []),
+                conversation_id=conversation_data.get("id")
             )
+            
+            if not conversation:
+                logger.error(f"Failed to create conversation for user: {user_email}")
+                raise HTTPException(status_code=500, detail="Failed to create conversation")
+            
+            logger.info(f"Conversation created successfully: {conversation.get('id')}")
             return conversation
-        else:
-            # Try Lakebase first - always try database, don't check if it exists
-            try:
-                # Create or get user first
-                user = await get_or_create_user(user_email)
-                if not user:
-                    raise HTTPException(status_code=500, detail="Failed to create or retrieve user")
-                
-                conversation = await create_conversation_service(
-                    user_email=user_email,
-                    title=conversation_data.get("title", "New Conversation"),
-                    messages=conversation_data.get("messages", [])
-                )
-                
-                if not conversation:
-                    raise HTTPException(status_code=500, detail="Failed to create conversation")
-                
-                return conversation
-            except Exception as db_error:
-                logger.error(f"Database error in conversation creation: {db_error}")
-                # Fall back to in-memory storage if database fails
-                import time
-                import random
-                conversation_id = f"conv_{int(time.time() * 1000)}_{random.randint(100000000, 999999999)}"
-                now = datetime.now().isoformat()
-                
-                # Store user info
-                if user_email not in users_storage:
-                    users_storage[user_email] = {
-                        "id": f"user_{uuid.uuid4().hex[:8]}",
-                        "email": user_email,
-                        "display_name": user_email.split('@')[0],
-                        "created_at": now,
-                        "last_login": now
-                    }
-                
-                conversation = {
-                    "id": conversation_id,
-                    "title": conversation_data.get("title", "New Conversation"),
-                    "user_email": user_email,
-                    "messages": conversation_data.get("messages", []),
+            
+        except Exception as db_error:
+            logger.error(f"Database error in conversation creation: {db_error}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Fall back to in-memory storage if database fails
+            import time
+            import random
+            conversation_id = f"conv_{int(time.time() * 1000)}_{random.randint(100000000, 999999999)}"
+            now = datetime.now().isoformat()
+            
+            # Store user info
+            if user_email not in users_storage:
+                users_storage[user_email] = {
+                    "id": f"user_{uuid.uuid4().hex[:8]}",
+                    "email": user_email,
+                    "display_name": user_email.split('@')[0],
                     "created_at": now,
-                    "updated_at": now
+                    "last_login": now
                 }
-                
-                conversations_storage[conversation_id] = conversation
-                return conversation
+            
+            conversation = {
+                "id": conversation_id,
+                "title": conversation_data.get("title", "New Conversation"),
+                "user_email": user_email,
+                "messages": conversation_data.get("messages", []),
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            conversations_storage[conversation_id] = conversation
+            logger.warning(f"Using fallback storage for conversation: {conversation_id}")
+            return conversation
             
     except HTTPException:
         raise
@@ -299,12 +400,31 @@ async def create_conversation(conversation_data: dict):
         raise HTTPException(status_code=500, detail="Failed to create conversation")
 
 @app.put("/conversations/{conversation_id}")
-async def update_conversation(conversation_id: str, conversation_data: dict, user_email: str = Query(...)):
+async def update_conversation(conversation_id: str, conversation_data: dict, request: Request):
     """Update a conversation"""
     try:
-        if MOCK_DATABASE:
-            # Use mock functions
-            conversation = await mock_update_conversation(
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
+        
+        # Extract user email from OAuth token
+        user_email = None
+        if user_token:
+            user_email = get_user_email_from_token(user_token)
+            logger.info(f"Extracted user email from OAuth token: {user_email}")
+        else:
+            # Fallback to header-based email if token extraction fails
+            user_email = request.headers.get("X-Forwarded-Email")
+            logger.info(f"Using header-based user email: {user_email}")
+        
+        if not user_email:
+            raise HTTPException(status_code=400, detail="User email not found in request")
+        
+        # Try Lakebase database first
+        try:
+            logger.info(f"Updating conversation {conversation_id} for user: {user_email}")
+            logger.info(f"Conversation data received: {conversation_data}")
+            
+            conversation = await update_conversation_service(
                 conversation_id=conversation_id,
                 user_email=user_email,
                 title=conversation_data.get('title'),
@@ -312,38 +432,37 @@ async def update_conversation(conversation_id: str, conversation_data: dict, use
             )
             
             if not conversation:
+                logger.error(f"Conversation not found: {conversation_id} for user: {user_email}")
+                # Let's check if the user exists and what conversations they have
+                from services.conversation_service import get_user_conversations
+                user_conversations = await get_user_conversations(user_email)
+                logger.info(f"User {user_email} has {len(user_conversations)} conversations")
+                logger.info(f"Available conversation IDs: {[conv.get('id') for conv in user_conversations]}")
                 raise HTTPException(status_code=404, detail="Conversation not found")
             
+            logger.info(f"Conversation updated successfully: {conversation_id}")
             return conversation
-        else:
-            # Try Lakebase first - always try database, don't check if it exists
-            try:
-                conversation = await update_conversation_service(
-                    conversation_id=conversation_id,
-                    user_email=user_email,
-                    title=conversation_data.get('title'),
-                    messages=conversation_data.get('messages')
-                )
-                
-                if not conversation:
-                    raise HTTPException(status_code=404, detail="Conversation not found")
-                
-                return conversation
-            except Exception as db_error:
-                logger.error(f"Database error in conversation update: {db_error}")
-                # Fall back to in-memory storage if database fails
-                conversation = conversations_storage.get(conversation_id)
-                
-                if not conversation or conversation.get('user_email') != user_email:
-                    raise HTTPException(status_code=404, detail="Conversation not found")
+            
+        except Exception as db_error:
+            logger.error(f"Database error in conversation update: {db_error}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Fall back to in-memory storage if database fails
+            conversation = conversations_storage.get(conversation_id)
+            
+            if not conversation or conversation.get('user_email') != user_email:
+                logger.error(f"Conversation not found in fallback storage: {conversation_id}")
+                raise HTTPException(status_code=404, detail="Conversation not found")
 
-                if 'title' in conversation_data:
-                    conversation['title'] = conversation_data['title']
-                if 'messages' in conversation_data:
-                    conversation['messages'] = conversation_data['messages']
-                
-                conversation['updated_at'] = datetime.now().isoformat()
-                return conversation
+            if 'title' in conversation_data:
+                conversation['title'] = conversation_data['title']
+            if 'messages' in conversation_data:
+                conversation['messages'] = conversation_data['messages']
+            
+            conversation['updated_at'] = datetime.now().isoformat()
+            logger.warning(f"Using fallback storage for conversation update: {conversation_id}")
+            return conversation
             
     except HTTPException:
         raise
@@ -352,9 +471,25 @@ async def update_conversation(conversation_id: str, conversation_data: dict, use
         raise HTTPException(status_code=500, detail="Failed to update conversation")
 
 @app.delete("/conversations/{conversation_id}")
-async def delete_conversation(conversation_id: str, user_email: str = Query(...)):
+async def delete_conversation(conversation_id: str, request: Request):
     """Delete a conversation"""
     try:
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
+        
+        # Extract user email from OAuth token
+        user_email = None
+        if user_token:
+            user_email = get_user_email_from_token(user_token)
+            logger.info(f"Extracted user email from OAuth token: {user_email}")
+        else:
+            # Fallback to header-based email if token extraction fails
+            user_email = request.headers.get("X-Forwarded-Email")
+            logger.info(f"Using header-based user email: {user_email}")
+        
+        if not user_email:
+            raise HTTPException(status_code=400, detail="User email not found in request")
+        
         # Try Lakebase first - always try database, don't check if it exists
         try:
             success = await delete_conversation_service(conversation_id, user_email)
@@ -382,9 +517,25 @@ async def delete_conversation(conversation_id: str, user_email: str = Query(...)
         raise HTTPException(status_code=500, detail="Failed to delete conversation")
 
 @app.post("/conversations/cleanup")
-async def cleanup_conversations(user_email: str = Query(...)):
+async def cleanup_conversations(request: Request):
     """Clean up empty conversations"""
     try:
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
+        
+        # Extract user email from OAuth token
+        user_email = None
+        if user_token:
+            user_email = get_user_email_from_token(user_token)
+            logger.info(f"Extracted user email from OAuth token: {user_email}")
+        else:
+            # Fallback to header-based email if token extraction fails
+            user_email = request.headers.get("X-Forwarded-Email")
+            logger.info(f"Using header-based user email: {user_email}")
+        
+        if not user_email:
+            raise HTTPException(status_code=400, detail="User email not found in request")
+        
         # Try Lakebase first - always try database, don't check if it exists
         try:
             deleted_count = await cleanup_empty_conversations(user_email)
@@ -406,6 +557,8 @@ async def cleanup_conversations(user_email: str = Query(...)):
 
             return {"message": f"Cleaned up {deleted_count} empty conversations", "deleted_count": deleted_count}
             
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error cleaning up conversations: {e}")
         return {"message": "Failed to cleanup conversations", "deleted_count": 0}
@@ -413,19 +566,29 @@ async def cleanup_conversations(user_email: str = Query(...)):
 # Pydantic models
 class ChatMessage(BaseModel):
     message: str
+    endpoint_name: str = None
 
 class ChatResponse(BaseModel):
     response: str
 
-async def query_llm(message: str, history: list = None, user_token: str = None) -> str:
+async def query_llm(message: str, history: list = None, user_token: str = None, endpoint_name: str = None) -> str:
     """
     Query the LLM with the given message and chat history.
     `message`: str - the latest user input.
     `history`: list of tuples - (user_msg, assistant_msg) pairs.
     `user_token`: str - user's access token for serving endpoint authentication.
+    `endpoint_name`: str - specific endpoint to use, defaults to DEFAULT_ENDPOINT.
     """
     if not message.strip():
         return "ERROR: The question should not be empty"
+
+    # Use provided endpoint or default
+    selected_endpoint = endpoint_name or DEFAULT_ENDPOINT
+    
+    # Validate endpoint
+    if selected_endpoint not in AVAILABLE_ENDPOINTS:
+        logger.warning(f"Invalid endpoint {selected_endpoint}, falling back to default")
+        selected_endpoint = DEFAULT_ENDPOINT
 
     # Convert from history format to OpenAI-style messages
     message_history = []
@@ -438,9 +601,9 @@ async def query_llm(message: str, history: list = None, user_token: str = None) 
     message_history.append({"role": "user", "content": message})
 
     try:
-        logger.info(f"Querying model endpoint: {SERVING_ENDPOINT}")
+        logger.info(f"Querying model endpoint: {selected_endpoint}")
         response = await query_endpoint(
-            endpoint_name=SERVING_ENDPOINT,
+            endpoint_name=selected_endpoint,
             messages=message_history,
             max_tokens=1000
         )
@@ -516,6 +679,258 @@ async def debug_token():
             "success": False
         }
 
+# Debug endpoint to test OAuth token extraction
+@app.get("/debug/oauth")
+async def debug_oauth(request: Request):
+    """Debug endpoint to test OAuth token extraction"""
+    try:
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
+        
+        # Get all headers for debugging
+        all_headers = dict(request.headers)
+        
+        if not user_token:
+            return {
+                "error": "No X-Forwarded-Access-Token header found",
+                "all_headers": all_headers,
+                "success": False
+            }
+        
+        # Extract user email from OAuth token
+        user_email = get_user_email_from_token(user_token)
+        user_info = get_user_info_from_token(user_token)
+        
+        return {
+            "user_token_present": True,
+            "user_token_length": len(user_token),
+            "user_token_preview": f"{user_token[:20]}...{user_token[-20:]}" if len(user_token) > 40 else user_token,
+            "user_email": user_email,
+            "user_info": user_info,
+            "all_headers": all_headers,
+            "success": user_email is not None
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+# Simple test endpoint to verify OAuth token is being received
+@app.get("/debug/headers")
+async def debug_headers(request: Request):
+    """Debug endpoint to check if OAuth headers are being received"""
+    try:
+        all_headers = dict(request.headers)
+        
+        # Check for various OAuth-related headers
+        oauth_headers = {
+            "X-Forwarded-Access-Token": request.headers.get("X-Forwarded-Access-Token"),
+            "X-Forwarded-Email": request.headers.get("X-Forwarded-Email"),
+            "Authorization": request.headers.get("Authorization"),
+            "X-Databricks-User": request.headers.get("X-Databricks-User"),
+            "X-Databricks-User-Id": request.headers.get("X-Databricks-User-Id"),
+        }
+        
+        return {
+            "all_headers": all_headers,
+            "oauth_headers": oauth_headers,
+            "success": True
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+# Debug endpoint to check database connection
+@app.get("/debug/database")
+async def debug_database():
+    """Debug endpoint to check database connection and operations"""
+    try:
+        from config.database import get_async_db, check_database_exists, ensure_database_tables
+        from sqlalchemy import text
+        
+        # Check database health
+        db_health = check_database_exists()
+        
+        # Test database operations
+        user_creation = None
+        conversation_creation = None
+        table_creation = None
+        
+        if db_health:
+            try:
+                # Test table creation
+                table_creation = await ensure_database_tables()
+                
+                # Test user creation
+                async for db in get_async_db():
+                    # Test a simple query
+                    result = await db.execute(text("SELECT 1 as test"))
+                    test_value = result.scalar()
+                    
+                    # Test user creation
+                    from services.user_service import create_user
+                    user = await create_user("test@example.com")
+                    user_creation = {
+                        "success": True,
+                        "user_id": user.id if user else None,
+                        "email": user.email if user else None
+                    }
+                    
+                    # Test conversation creation
+                    from services.conversation_service import create_conversation
+                    conversation = await create_conversation("test@example.com", "Test Conversation", [])
+                    conversation_creation = {
+                        "success": True,
+                        "conversation_id": conversation.id if conversation else None,
+                        "title": conversation.title if conversation else None
+                    }
+                    break
+                    
+            except Exception as e:
+                logger.error(f"Database operations test failed: {e}")
+                user_creation = {"success": False, "error": str(e)}
+                conversation_creation = {"success": False, "error": str(e)}
+        
+        return {
+            "database_health": db_health,
+            "table_creation": {"success": table_creation} if table_creation is not None else None,
+            "user_creation": user_creation,
+            "conversation_creation": conversation_creation,
+            "success": True
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+# Debug endpoint to check OAuth token
+@app.get("/debug/oauth")
+async def debug_oauth(request: Request):
+    """Debug endpoint to check OAuth token extraction"""
+    try:
+        # Get the OAuth token from headers
+        user_token = request.headers.get('X-Forwarded-Access-Token')
+        
+        if not user_token:
+            return {
+                "error": "No X-Forwarded-Access-Token header found",
+                "success": False
+            }
+        
+        # Try to extract user email
+        user_email = get_user_email_from_token(user_token)
+        user_info = get_user_info_from_token(user_token)
+        
+        return {
+            "token_found": True,
+            "token_length": len(user_token),
+            "token_preview": user_token[:20] + "..." if len(user_token) > 20 else user_token,
+            "user_email": user_email,
+            "user_info": user_info,
+            "success": True
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+# Debug endpoint to test database connection
+@app.get("/debug/db-connection")
+async def debug_db_connection():
+    """Debug endpoint to test database connection using the simplified approach"""
+    try:
+        from config.database import get_async_db, check_database_exists, engine
+        from sqlalchemy import text
+        
+        # Check if database is accessible
+        db_health = check_database_exists()
+        
+        if not db_health:
+            return {
+                "error": "Database connection failed",
+                "connection_url": str(engine.url) if engine else "No engine",
+                "success": False
+            }
+        
+        # Test a simple query
+        async for db in get_async_db():
+            result = await db.execute(text("SELECT 1 as test, current_database() as db_name, current_user as db_user"))
+            row = result.fetchone()
+            
+            return {
+                "connection_test": row[0] if row else None,
+                "database_name": row[1] if row else None,
+                "database_user": row[2] if row else None,
+                "connection_url": str(engine.url) if engine else "No engine",
+                "success": True
+            }
+            
+    except Exception as e:
+        return {
+            "error": str(e),
+            "connection_url": str(engine.url) if engine else "No engine",
+            "success": False
+        }
+
+# Debug endpoint to check if tables exist
+@app.get("/debug/tables")
+async def debug_tables():
+    """Debug endpoint to check if database tables exist"""
+    try:
+        from sqlalchemy import text
+        from config.database import get_async_db
+        
+        async for db in get_async_db():
+            # Check if users table exists
+            users_check = await db.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'users'
+                );
+            """))
+            users_exists = users_check.scalar()
+            
+            # Check if conversations table exists
+            conversations_check = await db.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'conversations'
+                );
+            """))
+            conversations_exists = conversations_check.scalar()
+            
+            # Get table counts
+            users_count = 0
+            conversations_count = 0
+            
+            if users_exists:
+                users_count_result = await db.execute(text("SELECT COUNT(*) FROM users"))
+                users_count = users_count_result.scalar()
+            
+            if conversations_exists:
+                conversations_count_result = await db.execute(text("SELECT COUNT(*) FROM conversations"))
+                conversations_count = conversations_count_result.scalar()
+            
+            return {
+                "users_table_exists": users_exists,
+                "conversations_table_exists": conversations_exists,
+                "users_count": users_count,
+                "conversations_count": conversations_count,
+                "success": True
+            }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "success": False
+        }
+
 # Debug endpoint to check environment variables
 @app.get("/debug/env")
 async def debug_env():
@@ -568,6 +983,7 @@ async def debug_database():
     try:
         from config.database import database_health, get_fresh_database_token
         from services.user_service import get_or_create_user
+        from services.conversation_service import create_conversation as create_conversation_service
         
         # Test database health
         db_healthy = await database_health()
@@ -600,10 +1016,44 @@ async def debug_database():
                 "error": str(user_error)
             }
         
+        # Test table creation
+        try:
+            from config.database import ensure_database_tables
+            tables_created = await ensure_database_tables()
+            table_info = {
+                "success": tables_created,
+                "message": "Tables ensured" if tables_created else "Failed to ensure tables"
+            }
+        except Exception as table_error:
+            table_info = {
+                "success": False,
+                "error": str(table_error)
+            }
+        
+        # Test conversation creation
+        try:
+            conversation = await create_conversation_service(
+                user_email="test@example.com",
+                title="Test Conversation",
+                messages=[{"role": "user", "content": "Test message"}]
+            )
+            conversation_info = {
+                "success": True,
+                "conversation_id": conversation.get("id") if conversation else None,
+                "title": conversation.get("title") if conversation else None
+            }
+        except Exception as conv_error:
+            conversation_info = {
+                "success": False,
+                "error": str(conv_error)
+            }
+        
         return {
             "database_health": db_healthy,
             "token_info": token_info,
-            "user_creation": user_info
+            "table_creation": table_info,
+            "user_creation": user_info,
+            "conversation_creation": conversation_info
         }
     except Exception as e:
         return {
@@ -766,14 +1216,30 @@ async def chat_endpoint(chat_message: ChatMessage, request: Request):
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     
     try:
-        # Get user email from headers for conversation tracking
-        user_email = request.headers.get("X-Forwarded-Email")
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
+        
+        # Extract user email from OAuth token
+        user_email = None
+        if user_token:
+            user_email = get_user_email_from_token(user_token)
+            logger.info(f"Extracted user email from OAuth token: {user_email}")
+        else:
+            # Fallback to header-based email if token extraction fails
+            user_email = request.headers.get("X-Forwarded-Email")
+            logger.info(f"Using header-based user email: {user_email}")
+        
+        if not user_email:
+            logger.warning("No user email found, using fallback")
+            user_email = "unknown@databricks.com"
         
         logger.info(f"Chat request from user: {user_email}")
         
-        # Use App auth for model calls
-        response_content = await query_llm(chat_message.message)
-        
+        # Use App auth for model calls with optional endpoint selection
+        response_content = await query_llm(
+            message=chat_message.message,
+            endpoint_name=chat_message.endpoint_name
+        )
         
         return ChatResponse(response=response_content)
         
@@ -789,47 +1255,76 @@ async def chat_endpoint(chat_message: ChatMessage, request: Request):
 async def get_user_info(request: Request):
     """Get user information for display in the app"""
     try:
-        # Get user email from headers
-        user_email = request.headers.get("X-Forwarded-Email")
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
         
-        logger.info(f"User authentication via App auth: {user_email}")
+        # Extract user information from OAuth token
+        user_info = None
+        if user_token:
+            user_info = get_user_info_from_token(user_token)
+            logger.info(f"Extracted user info from OAuth token: {user_info}")
         
-        if user_email:
-            # Use header-based info for app-auth
-            display_name = user_email.split('@')[0].replace('.', ' ').title()
+        if user_info and user_info.get("email"):
+            # Use OAuth-extracted info
+            email = user_info["email"]
+            display_name = user_info.get("display_name") or email.split('@')[0].replace('.', ' ').title()
+            username = user_info.get("user_name") or email.split('@')[0]
+            
             return {
                 "user": {
-                    "uid": user_email.split('@')[0],
-                    "email": user_email,
+                    "uid": username,
+                    "email": email,
                     "display_name": display_name,
-                    "username": user_email.split('@')[0],
+                    "username": username,
                     "initials": "".join([name[0].upper() for name in display_name.split()[:2]]),
-                    "groups": [],
-                    "roles": [],
+                    "groups": user_info.get("groups", []),
+                    "roles": user_info.get("roles", []),
                     "scopes": ["serving.serving-endpoints"],
                     "authenticated": True
                 },
-                    "auth_provider": "Databricks Apps (App auth)",
+                "auth_provider": "Databricks Apps (OAuth)",
                 "login_time": "Current session"
             }
         else:
-            # No user headers, this means we're not in a user context
-            logger.warning("No user headers found - using fallback user info")
-            return {
-                "user": {
-                    "uid": "databricks_user",
-                    "email": "user@databricks.com",
-                    "display_name": "Databricks User",
-                    "username": "databricks_user",
-                    "initials": "DU",
-                    "groups": [],
-                    "roles": [],
-                    "scopes": ["serving.serving-endpoints"],
-                    "authenticated": True
-                },
-                "auth_provider": "Databricks Apps Platform (App auth)",
-                "login_time": "Current session"
-            }
+            # Fallback to header-based email
+            user_email = request.headers.get("X-Forwarded-Email")
+            logger.info(f"Using header-based user email: {user_email}")
+            
+            if user_email:
+                display_name = user_email.split('@')[0].replace('.', ' ').title()
+                return {
+                    "user": {
+                        "uid": user_email.split('@')[0],
+                        "email": user_email,
+                        "display_name": display_name,
+                        "username": user_email.split('@')[0],
+                        "initials": "".join([name[0].upper() for name in display_name.split()[:2]]),
+                        "groups": [],
+                        "roles": [],
+                        "scopes": ["serving.serving-endpoints"],
+                        "authenticated": True
+                    },
+                    "auth_provider": "Databricks Apps (Header)",
+                    "login_time": "Current session"
+                }
+            else:
+                # No user info available
+                logger.warning("No user info found - using fallback user info")
+                return {
+                    "user": {
+                        "uid": "databricks_user",
+                        "email": "user@databricks.com",
+                        "display_name": "Databricks User",
+                        "username": "databricks_user",
+                        "initials": "DU",
+                        "groups": [],
+                        "roles": [],
+                        "scopes": ["serving.serving-endpoints"],
+                        "authenticated": True
+                    },
+                    "auth_provider": "Databricks Apps Platform (Fallback)",
+                    "login_time": "Current session"
+                }
     except Exception as e:
         logger.error(f"Error getting user info: {str(e)}")
         # Fallback to hardcoded user info
@@ -847,6 +1342,624 @@ async def get_user_info(request: Request):
             },
             "auth_provider": "Databricks Apps Platform (Error)",
             "login_time": "Current session"
+        }
+
+# Debug endpoint to check database initialization
+@app.get("/debug/db-init")
+async def debug_db_init():
+    """Debug endpoint to check database initialization process"""
+    try:
+        import os
+        from config.database import init_engine, check_database_exists, database_health, workspace_client, database_instance, postgres_password
+        
+        # Check environment variables
+        env_vars = {
+            "LAKEBASE_INSTANCE_NAME": os.getenv("LAKEBASE_INSTANCE_NAME"),
+            "LAKEBASE_DATABASE_NAME": os.getenv("LAKEBASE_DATABASE_NAME"),
+            "DATABRICKS_DATABASE_PORT": os.getenv("DATABRICKS_DATABASE_PORT"),
+            "DATABRICKS_CLIENT_ID": os.getenv("DATABRICKS_CLIENT_ID"),
+        }
+        
+        # Check if database exists
+        db_exists = check_database_exists()
+        
+        # Try to initialize engine
+        init_error = None
+        engine_initialized = False
+        try:
+            init_engine()
+            engine_initialized = True
+        except Exception as e:
+            init_error = str(e)
+            import traceback
+            init_error += f"\nTraceback: {traceback.format_exc()}"
+        
+        # Check database health if engine was initialized
+        db_health = False
+        if engine_initialized:
+            try:
+                db_health = await database_health()
+            except Exception as e:
+                db_health = f"Health check failed: {e}"
+        
+        # Get workspace client info
+        workspace_info = {}
+        if workspace_client:
+            try:
+                current_user = workspace_client.current_user.me()
+                workspace_info = {
+                    "user_name": current_user.user_name,
+                    "user_id": current_user.id,
+                    "host": workspace_client.config.host
+                }
+            except Exception as e:
+                workspace_info = {"error": str(e)}
+        
+        # Get database instance info
+        instance_info = {}
+        if database_instance:
+            try:
+                instance_info = {
+                    "name": database_instance.name,
+                    "read_write_dns": database_instance.read_write_dns,
+                    "status": getattr(database_instance, 'status', 'unknown')
+                }
+            except Exception as e:
+                instance_info = {"error": str(e)}
+        
+        return {
+            "environment_variables": env_vars,
+            "database_exists": db_exists,
+            "engine_initialized": engine_initialized,
+            "init_error": init_error,
+            "database_health": db_health,
+            "workspace_client": workspace_info,
+            "database_instance": instance_info,
+            "token_info": {
+                "has_token": postgres_password is not None,
+                "token_length": len(postgres_password) if postgres_password else 0,
+                "token_preview": postgres_password[:20] + "..." if postgres_password and len(postgres_password) > 20 else postgres_password
+            },
+            "success": True
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "success": False
+        }
+
+# Debug endpoint to test database connection step by step
+@app.get("/debug/db-step-by-step")
+async def debug_db_step_by_step():
+    """Debug endpoint to test database connection step by step"""
+    try:
+        import os
+        from databricks.sdk import WorkspaceClient
+        
+        steps = {}
+        
+        # Step 1: Check environment variables
+        try:
+            instance_name = os.getenv("LAKEBASE_INSTANCE_NAME")
+            database_name = os.getenv("LAKEBASE_DATABASE_NAME")
+            port = os.getenv("DATABRICKS_DATABASE_PORT", "5432")
+            
+            steps["env_vars"] = {
+                "LAKEBASE_INSTANCE_NAME": instance_name,
+                "LAKEBASE_DATABASE_NAME": database_name,
+                "DATABRICKS_DATABASE_PORT": port,
+                "success": bool(instance_name and database_name)
+            }
+        except Exception as e:
+            steps["env_vars"] = {"error": str(e), "success": False}
+        
+        # Step 2: Create WorkspaceClient
+        try:
+            workspace_client = WorkspaceClient()
+            current_user = workspace_client.current_user.me()
+            steps["workspace_client"] = {
+                "user_name": current_user.user_name,
+                "user_id": current_user.id,
+                "host": workspace_client.config.host,
+                "success": True
+            }
+        except Exception as e:
+            steps["workspace_client"] = {"error": str(e), "success": False}
+            return {"steps": steps, "success": False}
+        
+        # Step 3: Get database instance
+        try:
+            instance_name = os.getenv("LAKEBASE_INSTANCE_NAME")
+            database_instance = workspace_client.database.get_database_instance(name=instance_name)
+            steps["database_instance"] = {
+                "name": database_instance.name,
+                "read_write_dns": database_instance.read_write_dns,
+                "status": getattr(database_instance, 'status', 'unknown'),
+                "success": True
+            }
+        except Exception as e:
+            steps["database_instance"] = {"error": str(e), "success": False}
+            return {"steps": steps, "success": False}
+        
+        # Step 4: Generate database credentials
+        try:
+            import uuid
+            cred = workspace_client.database.generate_database_credential(
+                request_id=str(uuid.uuid4()),
+                instance_names=[database_instance.name]
+            )
+            steps["credentials"] = {
+                "has_token": bool(cred.token),
+                "token_length": len(cred.token) if cred.token else 0,
+                "token_preview": cred.token[:20] + "..." if cred.token and len(cred.token) > 20 else cred.token,
+                "success": True
+            }
+        except Exception as e:
+            steps["credentials"] = {"error": str(e), "success": False}
+            return {"steps": steps, "success": False}
+        
+        # Step 5: Test database connection
+        try:
+            from sqlalchemy import URL, text
+            from sqlalchemy.ext.asyncio import create_async_engine
+            
+            database_name = os.getenv("LAKEBASE_DATABASE_NAME", database_instance.name)
+            username = workspace_client.current_user.me().user_name
+            
+            url = URL.create(
+                drivername="postgresql+asyncpg",
+                username=username,
+                password=cred.token,
+                host=database_instance.read_write_dns,
+                port=int(os.getenv("DATABRICKS_DATABASE_PORT", "5432")),
+                database=database_name,
+            )
+            
+            # Create a test engine
+            test_engine = create_async_engine(
+                url,
+                pool_pre_ping=False,
+                echo=False,
+                connect_args={
+                    "command_timeout": 10,
+                    "server_settings": {
+                        "application_name": "debug_test",
+                    },
+                    "ssl": "require",
+                },
+            )
+            
+            # Test connection
+            async with test_engine.connect() as connection:
+                result = await connection.execute(text("SELECT 1 as test"))
+                test_value = result.scalar()
+            
+            await test_engine.dispose()
+            
+            steps["connection_test"] = {
+                "url": str(url).replace(cred.token, "***"),
+                "test_query_result": test_value,
+                "success": True
+            }
+        except Exception as e:
+            steps["connection_test"] = {"error": str(e), "success": False}
+        
+        return {
+            "steps": steps,
+            "overall_success": all(step.get("success", False) for step in steps.values()),
+            "success": True
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "success": False
+        }
+
+# Debug endpoint to list all database instances
+@app.get("/debug/db-instances")
+async def debug_db_instances():
+    """Debug endpoint to list all available database instances"""
+    try:
+        from databricks.sdk import WorkspaceClient
+        
+        workspace_client = WorkspaceClient()
+        
+        # Try different methods to list database instances
+        instances = []
+        
+        try:
+            # Method 1: Direct API call
+            instances_list = workspace_client.database.list_database_instances()
+            instances = [{"name": inst.name, "status": getattr(inst, 'status', 'unknown'), "method": "list_database_instances"} for inst in instances_list]
+        except Exception as e:
+            instances.append({"error": f"list_database_instances failed: {e}", "method": "list_database_instances"})
+        
+        try:
+            # Method 2: Try to get specific instance
+            instance_name = "onesource-chatbot-pg"
+            instance = workspace_client.database.get_database_instance(name=instance_name)
+            instances.append({
+                "name": instance.name,
+                "status": getattr(instance, 'status', 'unknown'),
+                "read_write_dns": getattr(instance, 'read_write_dns', 'unknown'),
+                "method": "get_database_instance"
+            })
+        except Exception as e:
+            instances.append({"error": f"get_database_instance failed: {e}", "method": "get_database_instance"})
+        
+        # Get current user info
+        try:
+            current_user = workspace_client.current_user.me()
+            user_info = {
+                "user_name": current_user.user_name,
+                "user_id": current_user.id,
+                "host": workspace_client.config.host
+            }
+        except Exception as e:
+            user_info = {"error": str(e)}
+        
+        return {
+            "instances": instances,
+            "user_info": user_info,
+            "success": True
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "success": False
+        }
+
+# Debug endpoint to test conversation operations
+@app.get("/debug/conversations")
+async def debug_conversations(request: Request):
+    """Debug endpoint to test conversation operations"""
+    try:
+        # Use a fake user email for debugging to avoid interfering with real user data
+        user_email = "debug@databricks.com"
+        
+        # Test conversation creation
+        from services.conversation_service import create_conversation, get_user_conversations
+        
+        # Create a test conversation
+        test_conversation = await create_conversation(
+            user_email=user_email,
+            title="Debug Test Conversation",
+            messages=[{"role": "user", "content": "Test message"}]
+        )
+        
+        # Get user conversations
+        user_conversations = await get_user_conversations(user_email)
+        
+        # Test conversation update
+        update_success = False
+        update_error = None
+        if test_conversation:
+            try:
+                from services.conversation_service import update_conversation
+                updated_conversation = await update_conversation(
+                    conversation_id=test_conversation.get('id'),
+                    user_email=user_email,
+                    title="Updated Debug Test Conversation",
+                    messages=[{"role": "user", "content": "Updated test message"}]
+                )
+                update_success = updated_conversation is not None
+            except Exception as e:
+                update_error = str(e)
+        
+        return {
+            "user_email": user_email,
+            "test_conversation_created": test_conversation is not None,
+            "test_conversation_id": test_conversation.get('id') if test_conversation else None,
+            "test_conversation_title": test_conversation.get('title') if test_conversation else None,
+            "total_conversations": len(user_conversations),
+            "conversation_ids": [conv.get('id') for conv in user_conversations],
+            "conversation_titles": [conv.get('title') for conv in user_conversations],
+            "update_test": {
+                "success": update_success,
+                "error": update_error
+            },
+            "success": True
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+# Debug endpoint to test specific conversation ID
+@app.get("/debug/conversation/{conversation_id}")
+async def debug_specific_conversation(conversation_id: str, request: Request):
+    """Debug endpoint to test a specific conversation ID"""
+    try:
+        # Get user token from headers
+        user_token = request.headers.get("X-Forwarded-Access-Token")
+        user_email = get_user_email_from_token(user_token) if user_token else "test@example.com"
+        
+        from services.conversation_service import get_user_conversations, update_conversation
+        
+        # Get all user conversations
+        user_conversations = await get_user_conversations(user_email)
+        
+        # Find the specific conversation
+        target_conversation = None
+        for conv in user_conversations:
+            if conv.get('id') == conversation_id:
+                target_conversation = conv
+                break
+        
+        # Try to update the conversation
+        update_result = None
+        update_error = None
+        try:
+            update_result = await update_conversation(
+                conversation_id=conversation_id,
+                user_email=user_email,
+                title="Debug Update Test",
+                messages=[{"role": "user", "content": "Debug update message"}]
+            )
+        except Exception as e:
+            update_error = str(e)
+        
+        return {
+            "conversation_id": conversation_id,
+            "user_email": user_email,
+            "conversation_found": target_conversation is not None,
+            "conversation_details": target_conversation,
+            "total_user_conversations": len(user_conversations),
+            "all_conversation_ids": [conv.get('id') for conv in user_conversations],
+            "update_test": {
+                "success": update_result is not None,
+                "result": update_result,
+                "error": update_error
+            },
+            "success": True
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "success": False
+        }
+
+# Debug endpoint to check if tables exist
+@app.get("/debug/tables")
+async def debug_tables():
+    """Debug endpoint to check if database tables exist"""
+    try:
+        from sqlalchemy import text
+        from config.database import get_async_db
+        
+        async for db in get_async_db():
+            # Check if users table exists
+            users_result = await db.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'users'
+            """))
+            users_exists = users_result.fetchone() is not None
+            
+            # Check if conversations table exists
+            conversations_result = await db.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'conversations'
+            """))
+            conversations_exists = conversations_result.fetchone() is not None
+            
+            # Get table counts
+            users_count = 0
+            conversations_count = 0
+            
+            if users_exists:
+                users_count_result = await db.execute(text("SELECT COUNT(*) FROM users"))
+                users_count = users_count_result.scalar()
+            
+            if conversations_exists:
+                conversations_count_result = await db.execute(text("SELECT COUNT(*) FROM conversations"))
+                conversations_count = conversations_count_result.scalar()
+            
+            return {
+                "users_table": {
+                    "exists": users_exists,
+                    "count": users_count
+                },
+                "conversations_table": {
+                    "exists": conversations_exists,
+                    "count": conversations_count
+                },
+                "success": True
+            }
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "success": False
+        }
+
+# Debug endpoint to check database configuration
+@app.get("/debug/db-config")
+async def debug_db_config():
+    """Debug endpoint to check database configuration"""
+    try:
+        from config.lakebase_config import get_lakebase_connection_config
+        import os
+        
+        config = get_lakebase_connection_config()
+        
+        # Check for relevant environment variables
+        env_vars = {
+            # Databricks-provided environment variables (preferred)
+            "DATABRICKS_DATABASE_HOST": os.getenv("DATABRICKS_DATABASE_HOST"),
+            "DATABRICKS_DATABASE_PORT": os.getenv("DATABRICKS_DATABASE_PORT"),
+            "DATABRICKS_DATABASE_NAME": os.getenv("DATABRICKS_DATABASE_NAME"),
+            "DATABRICKS_DATABASE_USER": os.getenv("DATABRICKS_DATABASE_USER"),
+            "DATABRICKS_DATABASE_PASSWORD": "***" if os.getenv("DATABRICKS_DATABASE_PASSWORD") else None,
+            # Custom environment variables (fallback)
+            "LAKEBASE_HOST": os.getenv("LAKEBASE_HOST"),
+            "LAKEBASE_PORT": os.getenv("LAKEBASE_PORT"),
+            "LAKEBASE_DATABASE_NAME": os.getenv("LAKEBASE_DATABASE_NAME"),
+            "LAKEBASE_USERNAME": os.getenv("LAKEBASE_USERNAME"),
+            "LAKEBASE_PASSWORD": "***" if os.getenv("LAKEBASE_PASSWORD") else None,
+            # Other potential variables
+            "DATABASE_URL": os.getenv("DATABASE_URL"),
+            "DATABRICKS_DATABASE_URL": os.getenv("DATABRICKS_DATABASE_URL"),
+        }
+        
+        return {
+            "config": config,
+            "environment_variables": env_vars,
+            "success": True
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+# Endpoint switching API endpoints
+@app.get("/endpoints")
+async def get_available_endpoints():
+    """Get list of available endpoints"""
+    try:
+        return {
+            "endpoints": list(AVAILABLE_ENDPOINTS.values()),
+            "default_endpoint": DEFAULT_ENDPOINT,
+            "success": True
+        }
+    except Exception as e:
+        logger.error(f"Error getting available endpoints: {e}")
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+@app.get("/endpoints/current")
+async def get_current_endpoint():
+    """Get the currently selected endpoint"""
+    try:
+        # For now, return the default endpoint
+        # In a real implementation, this could be stored per user/session
+        return {
+            "current_endpoint": DEFAULT_ENDPOINT,
+            "endpoint_info": AVAILABLE_ENDPOINTS.get(DEFAULT_ENDPOINT, {}),
+            "success": True
+        }
+    except Exception as e:
+        logger.error(f"Error getting current endpoint: {e}")
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+@app.post("/endpoints/switch")
+async def switch_endpoint(request: Request):
+    """Switch to a different endpoint"""
+    try:
+        data = await request.json()
+        endpoint_name = data.get("endpoint_name")
+        
+        if not endpoint_name:
+            raise HTTPException(status_code=400, detail="endpoint_name is required")
+        
+        if endpoint_name not in AVAILABLE_ENDPOINTS:
+            raise HTTPException(status_code=400, detail=f"Endpoint {endpoint_name} not available")
+        
+        # For now, we'll just validate the endpoint exists
+        # In a real implementation, this could be stored per user/session
+        endpoint_info = AVAILABLE_ENDPOINTS[endpoint_name]
+        
+        logger.info(f"Endpoint switch requested to: {endpoint_name}")
+        
+        return {
+            "message": f"Switched to {endpoint_info['display_name']}",
+            "current_endpoint": endpoint_name,
+            "endpoint_info": endpoint_info,
+            "success": True
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error switching endpoint: {e}")
+        return {
+            "error": str(e),
+            "success": False
+        }
+
+@app.get("/debug/endpoints")
+async def debug_endpoints():
+    """Debug endpoint to test connection to both endpoints"""
+    try:
+        from .model_serving_utils import query_endpoint
+        
+        results = {}
+        test_messages = [{"role": "user", "content": "Hello, this is a test message."}]
+        
+        for endpoint_name, endpoint_info in AVAILABLE_ENDPOINTS.items():
+            try:
+                logger.info(f"Testing endpoint: {endpoint_name}")
+                
+                # Test the endpoint with a simple message
+                response = await query_endpoint(
+                    endpoint_name=endpoint_name,
+                    messages=test_messages,
+                    max_tokens=50
+                )
+                
+                results[endpoint_name] = {
+                    "name": endpoint_name,
+                    "display_name": endpoint_info["display_name"],
+                    "description": endpoint_info["description"],
+                    "is_default": endpoint_info["is_default"],
+                    "status": "success",
+                    "response_preview": response.get("content", "")[:100] + "..." if len(response.get("content", "")) > 100 else response.get("content", ""),
+                    "response_length": len(response.get("content", "")),
+                    "error": None
+                }
+                
+                logger.info(f"✅ Endpoint {endpoint_name} test successful")
+                
+            except Exception as e:
+                logger.error(f"❌ Endpoint {endpoint_name} test failed: {e}")
+                results[endpoint_name] = {
+                    "name": endpoint_name,
+                    "display_name": endpoint_info["display_name"],
+                    "description": endpoint_info["description"],
+                    "is_default": endpoint_info["is_default"],
+                    "status": "error",
+                    "response_preview": None,
+                    "response_length": 0,
+                    "error": str(e)
+                }
+        
+        # Count successful vs failed endpoints
+        successful_endpoints = sum(1 for result in results.values() if result["status"] == "success")
+        total_endpoints = len(results)
+        
+        return {
+            "endpoints": results,
+            "summary": {
+                "total_endpoints": total_endpoints,
+                "successful_endpoints": successful_endpoints,
+                "failed_endpoints": total_endpoints - successful_endpoints,
+                "all_working": successful_endpoints == total_endpoints
+            },
+            "test_message": "Hello, this is a test message.",
+            "success": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in debug endpoints: {e}")
+        return {
+            "error": str(e),
+            "success": False
         }
 
 if __name__ == "__main__":

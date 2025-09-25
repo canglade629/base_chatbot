@@ -105,8 +105,10 @@ class LakebaseTableInitializer:
             )
             
             # Create the role in the database instance
+            # Use the instance name from config (which should be the Lakebase instance name)
+            instance_name = self.config.lakebase_database_name  # This is "onesource-chatbot-pg"
             workspace_client.database.create_database_instance_role(
-                instance_name=self.config.lakebase_database_name,
+                instance_name=instance_name,
                 database_instance_role=superuser_role
             )
             
@@ -129,18 +131,22 @@ class LakebaseTableInitializer:
         print(f"🔍 Checking Lakebase database connection...")
         
         # Test connection by listing databases
+        # Use instance name for psql command, but actual database name for -d flag
+        instance_name = self.config.lakebase_database_name  # Instance name from config
+        database_name = getattr(self.config, 'lakebase_postgres_database', 'databricks_postgres')  # PostgreSQL database name from config
+        
         test_result = self.run_cli_command([
-            "databricks", "psql", "-p", self.config.databricks_profile, self.config.lakebase_database_name, "--",
-            "-d", self.config.lakebase_database_name,
+            "databricks", "psql", "-p", self.config.databricks_profile, instance_name, "--",
+            "-d", database_name,
             "-c", "SELECT current_database();"
         ], "Test Lakebase connection")
         
         if test_result["success"]:
-            print(f"✅ Lakebase database '{self.config.lakebase_database_name}' is accessible")
+            print(f"✅ Lakebase database '{database_name}' on instance '{instance_name}' is accessible")
             self.results["steps_completed"].append("connection_verified")
             return True
         else:
-            print(f"❌ Cannot connect to Lakebase database '{self.config.lakebase_database_name}': {test_result['error']}")
+            print(f"❌ Cannot connect to Lakebase database '{database_name}' on instance '{instance_name}': {test_result['error']}")
             self.results["errors"].append(f"Lakebase connection failed: {test_result['error']}")
             return False
     
@@ -150,9 +156,12 @@ class LakebaseTableInitializer:
         
         # Use the public schema instead of creating a custom schema
         # This matches the app's configuration which uses the default schema
+        instance_name = self.config.lakebase_database_name  # Instance name from config
+        database_name = getattr(self.config, 'lakebase_postgres_database', 'databricks_postgres')  # PostgreSQL database name from config
+        
         schema_result = self.run_cli_command([
-            "databricks", "psql", "-p", self.config.databricks_profile, self.config.lakebase_database_name, "--",
-            "-d", self.config.lakebase_database_name,
+            "databricks", "psql", "-p", self.config.databricks_profile, instance_name, "--",
+            "-d", database_name,
             "-c", "SELECT current_schema();"
         ], "Check current schema")
         
@@ -209,11 +218,14 @@ class LakebaseTableInitializer:
         ]
         
         # Create tables
+        instance_name = self.config.lakebase_database_name  # Instance name from config
+        database_name = getattr(self.config, 'lakebase_postgres_database', 'databricks_postgres')  # PostgreSQL database name from config
+        
         success_count = 0
         for i, sql in enumerate(tables_sql, 1):
             result = self.run_cli_command([
-                "databricks", "psql", "-p", self.config.databricks_profile, self.config.lakebase_database_name, "--",
-                "-d", self.config.lakebase_database_name,
+                "databricks", "psql", "-p", self.config.databricks_profile, instance_name, "--",
+                "-d", database_name,
                 "-c", sql.strip()
             ], f"Create table {i}/{len(tables_sql)}")
             
@@ -243,9 +255,12 @@ class LakebaseTableInitializer:
         print(f"🔍 Verifying tables in public schema...")
         
         # List tables in the public schema
+        instance_name = self.config.lakebase_database_name  # Instance name from config
+        database_name = getattr(self.config, 'lakebase_postgres_database', 'databricks_postgres')  # PostgreSQL database name from config
+        
         verify_result = self.run_cli_command([
-            "databricks", "psql", "-p", self.config.databricks_profile, self.config.lakebase_database_name, "--",
-            "-d", self.config.lakebase_database_name,
+            "databricks", "psql", "-p", self.config.databricks_profile, instance_name, "--",
+            "-d", database_name,
             "-c", "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users', 'conversations');"
         ], "Verify tables exist")
         
@@ -266,7 +281,8 @@ class LakebaseTableInitializer:
         print(f"Environment: {self.config.name}")
         print(f"Base Name: {self.config.base_name}")
         print(f"Databricks Profile: {self.config.databricks_profile}")
-        print(f"Lakebase Database: {self.config.lakebase_database_name}")
+        print(f"Lakebase Instance: {self.config.lakebase_database_name}")
+        print(f"Lakebase Database: {getattr(self.config, 'lakebase_postgres_database', 'databricks_postgres')}")
         print(f"Lakebase Schema: {self.config.lakebase_schema}")
         print("=" * 60)
         
@@ -312,7 +328,8 @@ class LakebaseTableInitializer:
         print(f"Environment: {self.config.name}")
         print(f"Base Name: {self.config.base_name}")
         print(f"Databricks Profile: {self.config.databricks_profile}")
-        print(f"Lakebase Database: {self.config.lakebase_database_name}")
+        print(f"Lakebase Instance: {self.config.lakebase_database_name}")
+        print(f"Lakebase Database: {getattr(self.config, 'lakebase_postgres_database', 'databricks_postgres')}")
         print(f"Lakebase Schema: {self.config.lakebase_schema}")
         
         if self.results["steps_completed"]:

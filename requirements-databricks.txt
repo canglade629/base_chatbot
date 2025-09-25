@@ -12,7 +12,7 @@ httpx==0.25.2
 mlflow==2.8.1
 
 # Databricks SDK for platform authentication
-databricks-sdk
+databricks-sdk>=0.61.0
 
 # Configuration and validation
 python-dotenv==1.0.0

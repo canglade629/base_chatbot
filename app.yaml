@@ -8,16 +8,20 @@ env:
     value: "ka-1f9efcb2-endpoint"
   - name: "DATABRICKS_WORKSPACE_URL"
     value: "https://fe-vm-vdm-serverless-nmmvdg.cloud.databricks.com"
-  - name: "LAKEBASE_HOST"
-    value: "instance-cc424808-7c73-4954-af28-539b992b0587.database.cloud.databricks.com"
-  - name: "LAKEBASE_PORT"
-    value: "5432"
+  
+  # Lakebase connection settings
+  - name: "LAKEBASE_INSTANCE_NAME"
+    value: "onesource-chatbot-pg"
   - name: "LAKEBASE_DATABASE_NAME"
-    value: "danone-pg-db"
-  - name: "LAKEBASE_USERNAME"
-    value: "christophe.anglade@databricks.com"
-  - name: "LAKEBASE_PASSWORD"
-    value: "your-lakebase-password-here"
+    value: "databricks_postgres"
+  - name: "DATABRICKS_DATABASE_PORT"
+    value: "5432"
+  
+  # Additional Lakebase settings
+  - name: "LAKEBASE_HOST"
+    value: "instance-99e23c55-87b3-4523-b353-1e83fb0a0249.database.azuredatabricks.net"
+  
+  # Database connection pool settings
   - name: "DB_POOL_SIZE"
     value: "5"
   - name: "DB_MAX_OVERFLOW"

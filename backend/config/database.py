@@ -1,10 +1,13 @@
 import asyncio
 import logging
 import os
+import time
+import uuid
 from typing import AsyncGenerator
 
+from databricks.sdk import WorkspaceClient
 from dotenv import load_dotenv
-from sqlalchemy import URL, text
+from sqlalchemy import URL, event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -14,309 +17,270 @@ logger = logging.getLogger(__name__)
 # Global variables
 engine: AsyncEngine | None = None
 AsyncSessionLocal: sessionmaker | None = None
-current_password: str | None = None
+workspace_client: WorkspaceClient | None = None
+database_instance = None
 
-def get_fresh_database_token() -> str:
-    """Get a fresh token for database authentication with timeout handling"""
-    global current_password
-    
-    try:
-        # First try to get token from metadata service (for Databricks Apps) with short timeout
-        import requests
+# Token management for background refresh
+postgres_password: str | None = None
+last_password_refresh: float = 0
+token_refresh_task: asyncio.Task | None = None
+
+async def refresh_token_background():
+    """Background task to refresh tokens every 50 minutes"""
+    global postgres_password, last_password_refresh, workspace_client, database_instance
+
+    while True:
         try:
-            r = requests.get("http://localhost:8787/api/2.0/app-auth/token", timeout=2.0)
-            if r.status_code == 200:
-                response_data = r.json()
-                if "access_token" in response_data:
-                    token = response_data["access_token"]
-                    logger.info("✅ Got fresh token from metadata service for database auth")
-                    current_password = token
-                    return token
+            await asyncio.sleep(50 * 60)  # Wait 50 minutes
+            logger.info(
+                "Background token refresh: Generating fresh PostgreSQL OAuth token"
+            )
+
+            cred = workspace_client.database.generate_database_credential(
+                request_id=str(uuid.uuid4()),
+                instance_names=[database_instance.name],
+            )
+            postgres_password = cred.token
+            last_password_refresh = time.time()
+            logger.info("Background token refresh: Token updated successfully")
+
         except Exception as e:
-            logger.warning(f"Metadata service not available for database auth: {e}")
-        
-        # Try to get token from Databricks SDK with timeout
-        try:
-            from databricks.sdk import WorkspaceClient
-            w = WorkspaceClient()
-            token = w.config.token
-            if token:
-                logger.info("✅ Got fresh token from Databricks SDK for database auth")
-                current_password = token
-                return token
-        except Exception as e:
-            logger.warning(f"Databricks SDK not available for database auth: {e}")
-        
-        # Fall back to environment variable
-        fallback_token = os.getenv('DATABRICKS_TOKEN')
-        if fallback_token and fallback_token != "your-databricks-token-here":
-            logger.info("✅ Using fallback token from DATABRICKS_TOKEN for database auth")
-            current_password = fallback_token
-            return fallback_token
-        
-        # If all else fails, use the original password (may be expired)
-        original_password = os.getenv("LAKEBASE_PASSWORD")
-        if original_password:
-            logger.warning("Using original password (may be expired)")
-            current_password = original_password
-            return original_password
-        
-        raise Exception("No valid token found for database authentication")
-        
-    except Exception as e:
-        logger.error(f"Error getting fresh database token: {e}")
-        # Fall back to original password
-        original_password = os.getenv("LAKEBASE_PASSWORD")
-        if original_password:
-            logger.warning("Falling back to original password (may be expired)")
-            current_password = original_password
-            return original_password
-        raise Exception(f"Failed to get database token: {e}")
+            logger.error(f"Background token refresh failed: {e}")
+
 
 def init_engine():
-    """Initialize database connection using standard PostgreSQL connection"""
-    global engine, AsyncSessionLocal, current_password
+    """Initialize database connection using SQLAlchemy with automatic token refresh"""
+    global \
+        engine, \
+        AsyncSessionLocal, \
+        workspace_client, \
+        database_instance, \
+        postgres_password, \
+        last_password_refresh
 
     try:
-        # Get database connection details from environment variables
-        host = os.getenv("LAKEBASE_HOST")
-        port = int(os.getenv("LAKEBASE_PORT", "5432"))
-        database = os.getenv("LAKEBASE_DATABASE_NAME", "danone-pg-db")
-        username = os.getenv("LAKEBASE_USERNAME")
-        original_password = os.getenv("LAKEBASE_PASSWORD")
-        
-        if not all([host, username, original_password]):
-            raise ValueError("Missing required Lakebase environment variables: LAKEBASE_HOST, LAKEBASE_USERNAME, LAKEBASE_PASSWORD")
-        
-        logger.info(f"Connecting to Lakebase database: {host}:{port}/{database}")
-        
-        # Check if password is a JWT token (starts with eyJ)
-        if original_password.startswith("eyJ"):
-            logger.info("Detected JWT token in password, getting fresh token for database authentication")
-            # Get a fresh token for database authentication
-            password = get_fresh_database_token()
-        else:
-            logger.info("Using standard password authentication")
-            password = original_password
-            current_password = password
-        
-        # Build connection URL
+        workspace_client = WorkspaceClient()
+
+        instance_name = os.getenv("LAKEBASE_INSTANCE_NAME")
+        if not instance_name:
+            raise RuntimeError("LAKEBASE_INSTANCE_NAME environment variable is required")
+            
+        database_instance = workspace_client.database.get_database_instance(
+            name=instance_name
+        )
+
+        # Generate initial credentials
+        cred = workspace_client.database.generate_database_credential(
+            request_id=str(uuid.uuid4()), instance_names=[database_instance.name]
+        )
+        postgres_password = cred.token
+        last_password_refresh = time.time()
+        logger.info("Database: Initial credentials generated")
+
+        # Create Engine
+        database_name = os.getenv("LAKEBASE_DATABASE_NAME", database_instance.name)
+        username = (
+            os.getenv("DATABRICKS_CLIENT_ID")
+            or workspace_client.current_user.me().user_name
+            or None
+        )
+
         url = URL.create(
             drivername="postgresql+asyncpg",
             username=username,
-            password=password,
-            host=host,
-            port=port,
-            database=database,
+            password="",  # Will be set by event handler
+            host=database_instance.read_write_dns,
+            port=int(os.getenv("DATABRICKS_DATABASE_PORT", "5432")),
+            database=database_name,
         )
 
-        # Create async engine with connection pooling
         engine = create_async_engine(
             url,
-            pool_pre_ping=True,
+            pool_pre_ping=False,
             echo=False,
             pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
             max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
-            pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "10")),
+            pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "30")),
+            # OPTIONAL: Recycle connections every hour (before token expires)
             pool_recycle=int(os.getenv("DB_POOL_RECYCLE_INTERVAL", "3600")),
             connect_args={
-                "command_timeout": int(os.getenv("DB_COMMAND_TIMEOUT", "30")),
+                "command_timeout": int(os.getenv("DB_COMMAND_TIMEOUT", "10")),
+                "server_settings": {
+                    "application_name": "fastapi_chatbot_app",
+                },
+                "ssl": "require",
             },
         )
 
+        # Register token provider for new connections
+        @event.listens_for(engine.sync_engine, "do_connect")
+        def provide_token(dialect, conn_rec, cargs, cparams):
+            global postgres_password
+            # Use current token from background refresh
+            cparams["password"] = postgres_password
+
         AsyncSessionLocal = sessionmaker(
-            bind=engine,
-            class_=AsyncSession,
-            expire_on_commit=False,
-            autoflush=False,
-            autocommit=False,
+            bind=engine, class_=AsyncSession, expire_on_commit=False
         )
-        
-        logger.info(f"✅ Database engine initialized for {database}")
+        logger.info(
+            f"Database engine initialized for {database_name} with background token refresh"
+        )
 
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
         raise RuntimeError(f"Failed to initialize database: {e}") from e
 
-async def refresh_database_connection():
-    """Refresh the database connection with a new token with timeout handling"""
-    global engine, AsyncSessionLocal, current_password
-    
-    try:
-        logger.info("🔄 Refreshing database connection with fresh token...")
-        
-        # Get a fresh token with timeout
-        import asyncio
-        fresh_token = await asyncio.wait_for(
-            asyncio.to_thread(get_fresh_database_token),
-            timeout=10.0  # 10 second timeout for token retrieval
-        )
-        
-        # Get database connection details
-        host = os.getenv("LAKEBASE_HOST")
-        port = int(os.getenv("LAKEBASE_PORT", "5432"))
-        database = os.getenv("LAKEBASE_DATABASE_NAME", "danone-pg-db")
-        username = os.getenv("LAKEBASE_USERNAME")
-        
-        # Build new connection URL with fresh token
-        url = URL.create(
-            drivername="postgresql+asyncpg",
-            username=username,
-            password=fresh_token,
-            host=host,
-            port=port,
-            database=database,
-        )
+async def start_token_refresh():
+    """Start the background token refresh task"""
+    global token_refresh_task
+    if token_refresh_task is None or token_refresh_task.done():
+        token_refresh_task = asyncio.create_task(refresh_token_background())
+        logger.info("Background token refresh task started")
 
-        # Dispose old engine with timeout
-        if engine:
-            await asyncio.wait_for(engine.dispose(), timeout=5.0)
-        
-        # Create new engine with fresh token
-        engine = create_async_engine(
-            url,
-            pool_pre_ping=True,
-            echo=False,
-            pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
-            max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
-            pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "10")),
-            pool_recycle=int(os.getenv("DB_POOL_RECYCLE_INTERVAL", "3600")),
-            connect_args={
-                "command_timeout": int(os.getenv("DB_COMMAND_TIMEOUT", "30")),
-            },
-        )
 
-        AsyncSessionLocal = sessionmaker(
-            bind=engine,
-            class_=AsyncSession,
-            expire_on_commit=False,
-            autoflush=False,
-            autocommit=False,
-        )
-        
-        logger.info("✅ Database connection refreshed with fresh token")
-        
-    except asyncio.TimeoutError:
-        logger.error("❌ Database refresh timed out")
-        raise RuntimeError("Database refresh timed out")
-    except Exception as e:
-        logger.error(f"Error refreshing database connection: {e}")
-        raise RuntimeError(f"Failed to refresh database connection: {e}") from e
+async def stop_token_refresh():
+    """Stop the background token refresh task"""
+    global token_refresh_task
+    if token_refresh_task and not token_refresh_task.done():
+        token_refresh_task.cancel()
+        try:
+            await token_refresh_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Background token refresh task stopped")
+
 
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency that provides an async session with timeout handling"""
+    """Get a database session with automatic token refresh"""
     if AsyncSessionLocal is None:
-        logger.error("Database session not initialized. Call init_engine() first.")
-        raise RuntimeError("Database session not initialized.")
-    
-    import asyncio
-    
-    try:
-        # Add timeout to database operations
-        async with asyncio.timeout(30.0):  # 30 second timeout for database operations
-            async with AsyncSessionLocal() as session:
-                try:
-                    yield session
-                except Exception as e:
-                    logger.error(f"Database session error: {e}")
-                    # If we get an authentication error, try to refresh the connection
-                    if "Invalid authorization" in str(e) or "authentication" in str(e).lower() or "login" in str(e).lower():
-                        logger.warning("Database authentication error detected, attempting to refresh connection...")
-                        try:
-                            # Add timeout to refresh operation
-                            await asyncio.wait_for(refresh_database_connection(), timeout=15.0)
-                            # Try again with the refreshed connection
-                            async with AsyncSessionLocal() as refreshed_session:
-                                yield refreshed_session
-                                return
-                        except asyncio.TimeoutError:
-                            logger.error("Database refresh timed out")
-                            raise e
-                        except Exception as refresh_error:
-                            logger.error(f"Failed to refresh database connection: {refresh_error}")
-                            raise e
-                    else:
-                        raise e
-                finally:
-                    await session.close()
-    except asyncio.TimeoutError:
-        logger.error("Database operation timed out")
-        raise RuntimeError("Database operation timed out")
+        raise RuntimeError("Engine not initialized; call init_engine() first")
+    async with AsyncSessionLocal() as session:
+        yield session
 
 def check_database_exists() -> bool:
-    """Check if the Lakebase database is accessible using standard PostgreSQL connection"""
+    """Check if the Lakebase database instance exists"""
     try:
-        # Get database connection details from environment variables
-        host = os.getenv("LAKEBASE_HOST")
-        port = int(os.getenv("LAKEBASE_PORT", "5432"))
-        database = os.getenv("LAKEBASE_DATABASE_NAME", "danone-pg-db")
-        username = os.getenv("LAKEBASE_USERNAME")
-        password = os.getenv("LAKEBASE_PASSWORD")
+        workspace_client = WorkspaceClient()
+        instance_name = os.getenv("LAKEBASE_INSTANCE_NAME")
         
-        if not all([host, username, password]):
-            logger.warning("Missing required Lakebase environment variables")
-            return False
-        
-        # Test connection by creating a temporary engine
-        url = URL.create(
-            drivername="postgresql+asyncpg",
-            username=username,
-            password=password,
-            host=host,
-            port=port,
-            database=database,
-        )
-        
-        test_engine = create_async_engine(url, pool_pre_ping=True)
-        
-        # Test the connection
-        async def test_connection():
-            async with test_engine.begin() as conn:
-                await conn.execute(text("SELECT 1"))
-            await test_engine.dispose()
-        
-        # Run the test in a new event loop
-        import asyncio
-        try:
-            # Check if there's already an event loop running
-            try:
-                loop = asyncio.get_running_loop()
-                # If we're in an async context, we can't use run_until_complete
-                logger.warning("Cannot test database connection from within an async context")
-                return True  # Assume it works for now
-            except RuntimeError:
-                # No event loop running, we can create one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(test_connection())
-                    logger.info(f"✅ Lakebase database '{database}' is accessible")
-                    return True
-                finally:
-                    loop.close()
-        except Exception as e:
-            logger.warning(f"Database connection test failed: {e}")
+        if not instance_name:
+            logger.warning("LAKEBASE_INSTANCE_NAME not set - database instance check skipped")
             return False
             
+        workspace_client.database.get_database_instance(name=instance_name)
+        logger.info(f"Lakebase database instance '{instance_name}' exists")
+        return True
     except Exception as e:
-        logger.warning(f"Lakebase database connection test failed: {e}")
+        if "not found" in str(e).lower() or "resource not found" in str(e).lower():
+            logger.info(f"Lakebase database instance '{instance_name}' does not exist")
+        else:
+            logger.error(f"Error checking database instance existence: {e}")
         return False
 
+
+async def start_token_refresh():
+    """Start the background token refresh task"""
+    global token_refresh_task
+    if token_refresh_task is None or token_refresh_task.done():
+        token_refresh_task = asyncio.create_task(refresh_token_background())
+        logger.info("Background token refresh task started")
+
+
+async def stop_token_refresh():
+    """Stop the background token refresh task"""
+    global token_refresh_task
+    if token_refresh_task and not token_refresh_task.done():
+        token_refresh_task.cancel()
+        try:
+            await token_refresh_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Background token refresh task stopped")
+
+
 async def database_health() -> bool:
-    """Performs a simple health check on the database connection."""
+    global engine
+
+    if engine is None:
+        logger.error("Database engine is None - not initialized")
+        return False
+
     try:
-        async for db in get_async_db():
-            await db.execute(text("SELECT 1"))
+        logger.info("Testing database connection...")
+        async with engine.connect() as connection:
+            result = await connection.execute(text("SELECT 1"))
+            logger.info("Database connection is healthy.")
             return True
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
-# Legacy functions for compatibility (no-op)
-async def start_token_refresh():
-    """Legacy function - no longer needed with standard PostgreSQL connection"""
-    pass
+async def ensure_database_tables():
+    """Ensure that the required database tables exist"""
+    try:
+        from models import User, Conversation
+        from sqlalchemy import text, MetaData
+        
+        logger.info("Ensuring database tables exist...")
+        
+        async for db in get_async_db():
+            # Check if users table exists
+            users_check = await db.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'users'
+                );
+            """))
+            users_exists = users_check.scalar()
+            
+            # Check if conversations table exists
+            conversations_check = await db.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'conversations'
+                );
+            """))
+            conversations_exists = conversations_check.scalar()
+            
+            if not users_exists or not conversations_exists:
+                logger.warning("Required tables don't exist. Creating them...")
+                
+                # Create tables using SQLAlchemy metadata
+                metadata = MetaData()
+                
+                # Import the models to register them with metadata
+                from models.users import User
+                from models.conversations import Conversation
+                
+                # Create all tables
+                async with engine.begin() as conn:
+                    await conn.run_sync(metadata.create_all)
+                
+                logger.info("✅ Database tables created successfully")
+            else:
+                logger.info("✅ Database tables already exist")
+                
+            return True
+            
+    except Exception as e:
+        logger.error(f"Error ensuring database tables: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
 
-async def stop_token_refresh():
-    """Legacy function - no longer needed with standard PostgreSQL connection"""
-    pass
+def refresh_database_connection():
+    """Refresh database connection"""
+    global engine, AsyncSessionLocal
+    try:
+        if engine:
+            engine.dispose()
+        init_engine()
+        logger.info("✅ Database connection refreshed")
+    except Exception as e:
+        logger.error(f"Error refreshing database connection: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")

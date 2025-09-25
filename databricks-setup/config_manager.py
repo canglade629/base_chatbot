@@ -25,6 +25,7 @@ class EnvironmentConfig:
     warehouse_name: str
     vector_search_database_name: str
     lakebase_schema: str
+    lakebase_postgres_database: Optional[str] = None
     postgres_host: Optional[str] = None
     postgres_port: Optional[int] = None
     postgres_db: Optional[str] = None
@@ -68,11 +69,17 @@ class ConfigManager:
         return EnvironmentConfig(
             name=env_name,
             base_name=base_name,
+            databricks_app_name=os.getenv("DATABRICKS_APP_NAME", base_name),
             databricks_profile=os.getenv("DATABRICKS_PROFILE", "dbxworkspace"),
             databricks_host=os.getenv("DATABRICKS_HOST", ""),
             databricks_token=os.getenv("DATABRICKS_TOKEN", ""),
             lakebase_database_name=os.getenv("LAKEBASE_DATABASE", base_name),
-            lakebase_catalog=os.getenv("LAKEBASE_CATALOG", base_name),
+            lakebase_postgres_database=os.getenv("LAKEBASE_POSTGRES_DATABASE", "databricks_postgres"),
+            unity_catalog=os.getenv("UNITY_CATALOG", base_name),
+            unity_catalog_schema=os.getenv("UNITY_CATALOG_SCHEMA", base_name),
+            unity_catalog_volume=os.getenv("UNITY_CATALOG_VOLUME", base_name),
+            warehouse_name=os.getenv("WAREHOUSE_NAME", base_name),
+            vector_search_database_name=os.getenv("VECTOR_SEARCH_DATABASE_NAME", base_name),
             lakebase_schema=os.getenv("LAKEBASE_SCHEMA", base_name),
             postgres_host=os.getenv("POSTGRES_HOST"),
             postgres_port=int(os.getenv("POSTGRES_PORT", "5432")) if os.getenv("POSTGRES_PORT") else None,
@@ -98,6 +105,7 @@ class ConfigManager:
             "databricks_host": config.databricks_host,
             "databricks_token": config.databricks_token,
             "lakebase_database_name": config.lakebase_database_name,
+            "lakebase_postgres_database": config.lakebase_postgres_database,
             "unity_catalog": config.unity_catalog,
             "unity_catalog_schema": config.unity_catalog_schema,
             "unity_catalog_volume": config.unity_catalog_volume,
